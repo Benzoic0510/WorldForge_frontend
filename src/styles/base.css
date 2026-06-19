@@ -1,0 +1,79 @@
+:root {
+  --color-ink: #18211f;
+  --color-muted: #61706b;
+  --color-accent: #14735a;
+  --color-line: #d9e2dc;
+  --color-line-strong: #bac8c1;
+  --surface: #f6f2e8;
+  --surface-cool: #e8f1ed;
+  --font-display: "Songti SC", "Noto Serif SC", Georgia, serif;
+  --font-body: "Avenir Next", "Noto Sans SC", "Helvetica Neue", sans-serif;
+  --shadow-panel: 0 24px 70px rgb(24 33 31 / 14%);
+  --nav-height: 68px;
+  --page-max-width: 1320px;
+  --focus-ring: 0 0 0 3px rgb(20 115 90 / 16%);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  min-height: 100%;
+  margin: 0;
+}
+
+html {
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
+}
+
+body {
+  color: var(--color-ink);
+  background:
+    linear-gradient(115deg, rgb(232 241 237 / 92%) 0%, rgb(246 242 232 / 90%) 48%, rgb(238 230 214 / 96%) 100%),
+    var(--surface);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body::before {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  content: "";
+  background-image:
+    linear-gradient(rgb(24 33 31 / 5%) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(24 33 31 / 5%) 1px, transparent 1px);
+  background-size: 34px 34px;
+  mask-image: linear-gradient(to bottom, rgb(0 0 0 / 75%), transparent 78%);
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible {
+  outline: 0;
+  box-shadow: var(--focus-ring);
+}
+
+a {
+  color: inherit;
+}
+
+.page-container {
+  width: min(var(--page-max-width), calc(100% - 40px));
+  margin-inline: auto;
+}
+
+body nav[class$="-breadcrumb"] {
+  display: none !important;
+}
