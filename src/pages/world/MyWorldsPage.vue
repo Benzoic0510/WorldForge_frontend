@@ -886,7 +886,8 @@ watch(
 .work-world-cover img {
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: cover;
+  object-position: center;
 }
 
 .work-world-main {
