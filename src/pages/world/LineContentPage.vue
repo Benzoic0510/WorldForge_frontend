@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
-import { getStoryGraph, getStoryLineDetail, listApprovedStoryPushes } from '@/api/storyline'
+import { getStoryGraph, getStoryLineDetail, getStoryPushDetail, listApprovedStoryPushes } from '@/api/storyline'
 import { ApiError } from '@/api/http'
 import { getWorldDetail } from '@/api/world'
 import type { WorldDetail } from '@/types/world'
@@ -19,11 +19,23 @@ const errorMessage = ref('')
 const page = ref(1)
 const totalPages = ref(0)
 const allLinePushes = ref<SubmissionListItem[]>([])
+const pushContentErrors = ref<Record<string, string>>({})
 
 const worldId = computed(() => String(route.params.worldId || ''))
 const lineId = computed(() => String(route.params.lineId || ''))
 const canEditWorld = computed(() => world.value?.viewer.canEdit === true)
 const canLoadMore = computed(() => page.value < totalPages.value)
+const lineCreatorName = computed(() => {
+  const creatorId = storyLine.value?.createdBy?.trim() ?? ''
+  if (!creatorId) return ''
+  if (creatorId === world.value?.creator.userId) {
+    return world.value.creator.nickname
+  }
+  if (/^usr_[\w-]+$/i.test(creatorId)) {
+    return ''
+  }
+  return creatorId
+})
 const mergedParentLineIds = computed(() => {
   const ids = new Set<string>()
   const mergeLineIds = new Set(
@@ -59,10 +71,42 @@ function getErrorMessage(error: unknown, fallback: string) {
   return fallback
 }
 
+function getPushContent(push: SubmissionListItem): string {
+  return push.content ?? ''
+}
+
+function hasPushContent(push: SubmissionListItem): boolean {
+  return getPushContent(push).trim().length > 0
+}
+
+async function hydratePushContents(items: SubmissionListItem[]): Promise<SubmissionListItem[]> {
+  const hydratedItems = await Promise.all(
+    items.map(async push => {
+      if (hasPushContent(push)) {
+        return push
+      }
+
+      try {
+        const detail = await getStoryPushDetail(worldId.value, push.submissionId)
+        return { ...push, content: detail.content }
+      } catch (error) {
+        pushContentErrors.value = {
+          ...pushContentErrors.value,
+          [push.submissionId]: getErrorMessage(error, '正文内容暂时无法加载')
+        }
+        return push
+      }
+    })
+  )
+
+  return hydratedItems
+}
+
 async function loadData() {
   loading.value = true
   errorMessage.value = ''
   allLinePushes.value = []
+  pushContentErrors.value = {}
 
   try {
     world.value = await getWorldDetail(worldId.value)
@@ -108,7 +152,7 @@ async function fetchPushes(options: { append?: boolean } = {}) {
     }
     const pageSize = 20
     const start = (page.value - 1) * pageSize
-    const dataItems = allLinePushes.value.slice(start, start + pageSize)
+    const dataItems = await hydratePushContents(allLinePushes.value.slice(start, start + pageSize))
 
     if (append) {
       pushes.value = pushes.value.concat(dataItems)
@@ -187,7 +231,7 @@ onMounted(async () => {
             <span class="line-type-badge" :class="`line-type-badge--${storyLine.type}`">
               {{ formatLineType(storyLine.type) }}线
             </span>
-            <span>{{ storyLine.createdBy }}</span>
+            <span v-if="lineCreatorName">{{ lineCreatorName }}</span>
             <span>{{ formatDateTime(storyLine.createdAt) }}</span>
           </div>
         </div>
@@ -236,9 +280,10 @@ onMounted(async () => {
                 <span class="timeline-card__author">{{ push.submitter.nickname }}</span>
                 <span class="timeline-card__time">{{ formatDateTime(push.submittedAt) }}</span>
               </div>
-              <div class="timeline-card__placeholder">
+              <div v-if="hasPushContent(push)" class="timeline-card__content" v-text="getPushContent(push)"></div>
+              <div v-else class="timeline-card__placeholder">
                 <span class="placeholder-icon">&#128214;</span>
-                <span>正文内容即将上线</span>
+                <span>{{ pushContentErrors[push.submissionId] || '正文内容为空' }}</span>
               </div>
             </div>
           </div>
@@ -540,6 +585,13 @@ onMounted(async () => {
 
 .timeline-card__author {
   color: var(--color-ink);
+}
+
+.timeline-card__content {
+  white-space: pre-wrap;
+  color: var(--color-ink);
+  font-size: 0.98rem;
+  line-height: 1.85;
 }
 
 .timeline-card__placeholder {

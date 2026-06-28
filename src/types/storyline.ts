@@ -155,6 +155,7 @@ export interface SubmissionSubmitter {
 export interface SubmissionListItem {
   submissionId: string
   summary: string
+  content?: string
   submitter: SubmissionSubmitter
   targetLineId: string
   basedOnPushId: string | null
