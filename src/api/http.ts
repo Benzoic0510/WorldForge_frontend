@@ -23,6 +23,7 @@ interface RequestOptions extends Omit<RequestInit, 'body'> {
 }
 
 const REQUEST_TIMEOUT_MS = 5000
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '') ?? ''
 
 let refreshTokenCallback: (() => Promise<unknown>) | null = null
 
@@ -80,7 +81,7 @@ async function doFetch<T>(path: string, options: RequestOptions): Promise<T> {
   let response: Response
 
   try {
-    response = await fetch(path, {
+    response = await fetch(buildRequestUrl(path), {
       ...options,
       body: buildRequestBody(options.body),
       credentials: 'include',
@@ -112,6 +113,14 @@ async function doFetch<T>(path: string, options: RequestOptions): Promise<T> {
   }
 
   return payload.data
+}
+
+function buildRequestUrl(path: string): string {
+  if (/^https?:\/\//i.test(path) || !API_BASE_URL) {
+    return path
+  }
+
+  return `${API_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`
 }
 
 const RETRYABLE_AUTH_CODES = new Set(['ACCESS_TOKEN_EXPIRED', 'UNAUTHORIZED'])
