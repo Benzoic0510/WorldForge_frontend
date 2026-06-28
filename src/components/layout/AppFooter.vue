@@ -18,7 +18,9 @@
         <h3>支持信息</h3>
         <span>使用说明</span>
         <span>协作规范</span>
-        <span>关于项目</span>
+        <a href="https://git.nju.edu.cn/10d-treearray/sec-ii-2026" rel="noopener noreferrer" target="_blank">
+          关于项目
+        </a>
         <span>反馈</span>
       </div>
     </div>

@@ -199,10 +199,10 @@ onMounted(() => {
             class="world-card"
             @click="goToWorld(world.worldId)"
           >
-            <div
-              class="world-card-cover"
-              :style="{ backgroundImage: world.coverImageUrl ? `url(${world.coverImageUrl})` : undefined }"
-            ></div>
+            <div class="world-card-cover">
+              <img v-if="world.coverImageUrl" :src="world.coverImageUrl" :alt="`${world.name} 封面`">
+              <span v-else>{{ world.name.charAt(0) }}</span>
+            </div>
             <div class="world-card-body">
               <h3>{{ world.name }}</h3>
               <p>{{ world.description }}</p>
@@ -466,10 +466,24 @@ onMounted(() => {
 }
 
 .world-card-cover {
-  height: 120px;
-  background: var(--surface-cool);
-  background-size: cover;
-  background-position: center;
+  display: grid;
+  height: 260px;
+  place-items: center;
+  overflow: hidden;
+  border-bottom: 1px solid var(--color-line);
+  color: #103b31;
+  background: #edf4f0;
+  font-family: var(--font-display);
+  font-size: 2rem;
+  font-weight: 900;
+}
+
+.world-card-cover img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
 }
 
 .world-card-body {
