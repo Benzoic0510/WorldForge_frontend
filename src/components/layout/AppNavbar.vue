@@ -285,21 +285,27 @@ onUnmounted(() => {
   justify-content: center;
   width: 40px;
   height: 40px;
-  border-radius: 8px;
+  border: 0;
+  border-radius: 50%;
   color: var(--color-ink);
+  background: transparent;
   text-decoration: none;
-  transition: color 150ms ease;
+  outline: 0;
+  transition:
+    color 150ms ease,
+    background 150ms ease,
+    box-shadow 150ms ease;
 }
 
 .nav-message-link svg {
-  width: 22px;
-  height: 22px;
+  width: 21px;
+  height: 21px;
 }
 
 .nav-message-link__dot {
   position: absolute;
-  top: 8px;
-  right: 8px;
+  top: 9px;
+  right: 9px;
   width: 7px;
   height: 7px;
   border: 1.5px solid rgb(246 242 232 / 96%);
@@ -311,6 +317,13 @@ onUnmounted(() => {
 .nav-message-link:hover,
 .nav-message-link.router-link-active {
   color: var(--color-accent);
+  background: rgb(232 241 237 / 58%);
+}
+
+.nav-message-link:focus-visible {
+  color: var(--color-accent);
+  background: rgb(232 241 237 / 58%);
+  box-shadow: var(--focus-ring);
 }
 
 .nav-link:hover,

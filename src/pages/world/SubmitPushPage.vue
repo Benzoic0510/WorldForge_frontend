@@ -28,6 +28,13 @@ const trimmedTitle = computed(() => form.title.trim())
 const trimmedContent = computed(() => form.content.trim())
 const trimmedSummary = computed(() => form.summary.trim())
 const canEditWorld = computed(() => world.value?.viewer.canEdit === true)
+const canReviewWorld = computed(() => world.value?.viewer.canReview === true)
+const successTargetLine = computed(() => {
+  if (!successResult.value || !storyGraphData.value) return null
+  return storyGraphData.value.nodes.find(node => node.lineId === successResult.value?.targetLineId) ?? null
+})
+const successTargetLineName = computed(() => successTargetLine.value?.name ?? '目标故事线')
+const successSubmittedAt = computed(() => formatDateTime(successResult.value?.submittedAt ?? ''))
 const mergedParentLineIds = computed(() => {
   const ids = new Set<string>()
   const mergeLineIds = new Set(
@@ -66,6 +73,28 @@ function formatLineType(type: string): string {
   if (type === 'fork') return '分'
   if (type === 'merge') return '合'
   return type
+}
+
+function formatLineTypeLabel(type: string): string {
+  if (type === 'main') return '主线'
+  if (type === 'fork') return '剧情分支'
+  if (type === 'merge') return '合并线'
+  return type
+}
+
+function formatDateTime(dt: string): string {
+  if (!dt) return ''
+  const date = new Date(dt)
+  if (Number.isNaN(date.getTime())) {
+    return dt.replace('T', ' ').substring(0, 16)
+  }
+  return new Intl.DateTimeFormat('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  }).format(date)
 }
 
 function isMergedParentLine(lineId: string): boolean {
@@ -191,18 +220,52 @@ onMounted(async () => {
     </section>
 
     <section v-else-if="successResult" class="push-shell page-container">
-      <div class="push-state">
-        <h1>提交成功</h1>
-        <p>你的草稿已提交至目标故事线，等待审核。审核通过后内容将合并到世界线中。</p>
+      <div class="push-state push-state--success">
+        <span class="success-mark" aria-hidden="true">✓</span>
+        <h1>已进入审核队列</h1>
+        <p>
+          你的草稿已提交到
+          <strong>{{ successTargetLineName }}</strong>
+          ，管理员审核通过后会自动出现在故事线内容中。
+        </p>
         <div class="push-result-detail">
-          <span>提交编号：{{ successResult.submissionId }}</span>
-          <span>目标故事线：{{ successResult.targetLineId }}</span>
-          <span>状态：待审核</span>
-          <span>提交时间：{{ successResult.submittedAt }}</span>
+          <div class="result-row">
+            <span class="result-label">目标故事线</span>
+            <strong>{{ successTargetLineName }}</strong>
+          </div>
+          <div v-if="successTargetLine" class="result-row">
+            <span class="result-label">类型</span>
+            <strong>{{ formatLineTypeLabel(successTargetLine.type) }}</strong>
+          </div>
+          <div class="result-row">
+            <span class="result-label">审核状态</span>
+            <strong class="status-pill">待审核</strong>
+          </div>
+          <div class="result-row">
+            <span class="result-label">提交时间</span>
+            <strong>{{ successSubmittedAt }}</strong>
+          </div>
+          <div class="result-row result-row--summary">
+            <span class="result-label">提交摘要</span>
+            <strong>{{ successResult.summary }}</strong>
+          </div>
         </div>
         <div class="state-actions">
           <RouterLink
             class="state-button state-button--primary"
+            :to="{ name: 'line-content', params: { worldId, lineId: successResult.targetLineId } }"
+          >
+            查看故事线
+          </RouterLink>
+          <RouterLink
+            v-if="canReviewWorld"
+            class="state-button"
+            :to="{ name: 'review-submissions', params: { worldId } }"
+          >
+            前往审核
+          </RouterLink>
+          <RouterLink
+            class="state-button"
             :to="{ name: 'world-detail', params: { worldId } }"
           >
             返回世界详情
@@ -402,6 +465,23 @@ onMounted(async () => {
   background: rgb(108 36 36 / 6%);
 }
 
+.push-state--success {
+  align-content: start;
+}
+
+.success-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  color: #fff;
+  background: #14735a;
+  font-size: 1.35rem;
+  font-weight: 900;
+}
+
 .push-state h1,
 .push-state p,
 .push-header h1,
@@ -425,6 +505,10 @@ onMounted(async () => {
 .push-header p {
   color: var(--color-muted);
   line-height: 1.75;
+}
+
+.push-state p strong {
+  color: var(--color-ink);
 }
 
 .state-actions {
@@ -601,17 +685,46 @@ select:focus {
 
 .push-result-detail {
   display: grid;
-  gap: 6px;
-  padding: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  padding: 18px;
   border: 1px solid var(--color-line);
   border-radius: 8px;
   background: rgb(255 255 255 / 42%);
 }
 
-.push-result-detail span {
+.result-row {
+  display: grid;
+  gap: 4px;
+}
+
+.result-row--summary {
+  grid-column: 1 / -1;
+}
+
+.result-label {
   color: var(--color-muted);
-  font-size: 0.9rem;
+  font-size: 0.8rem;
   font-weight: 800;
+}
+
+.result-row strong {
+  color: var(--color-ink);
+  font-size: 0.96rem;
+  line-height: 1.5;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  color: #14735a;
+  background: rgb(20 115 90 / 12%);
+  font-size: 0.86rem;
+  font-weight: 900;
 }
 
 .info-panel {
@@ -688,6 +801,10 @@ select:focus {
   .submit-button,
   .cancel-link {
     width: 100%;
+  }
+
+  .push-result-detail {
+    grid-template-columns: 1fr;
   }
 }
 </style>

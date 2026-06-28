@@ -508,13 +508,29 @@ onMounted(async () => {
 }
 
 .timeline-item {
+  position: relative;
   display: grid;
   grid-template-columns: 24px 1fr;
   gap: 16px;
 }
 
+.timeline-item::before {
+  content: '';
+  position: absolute;
+  top: 42px;
+  bottom: -6px;
+  left: 11px;
+  width: 2px;
+  background: rgb(16 59 49 / 14%);
+}
+
+.timeline-item:last-child::before {
+  display: none;
+}
+
 .timeline-marker {
   position: relative;
+  z-index: 1;
   width: 14px;
   height: 14px;
   margin-top: 28px;
@@ -530,21 +546,6 @@ onMounted(async () => {
 
 .timeline-marker--merge {
   background: #6c5b24;
-}
-
-.timeline-marker::after {
-  content: '';
-  position: absolute;
-  top: 14px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 2px;
-  height: calc(100% + 20px);
-  background: rgb(16 59 49 / 14%);
-}
-
-.timeline-item:last-child .timeline-marker::after {
-  display: none;
 }
 
 .timeline-card {

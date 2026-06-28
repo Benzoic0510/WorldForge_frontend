@@ -569,45 +569,47 @@ watch(
           <!-- 操作按钮横条 -->
           <div class="detail-hero__actions">
             <template v-if="canEditWorld">
-              <span v-if="world.viewer.role" class="role-badge">你的权限：{{ formatRole(world.viewer.role) }}</span>
-              <div ref="manageDropdownRef" class="manage-dropdown">
-                <button type="button" class="action-link" @click.stop="toggleManageDropdown">
-                  管理世界 ▾
-                </button>
-                <div v-if="showManageDropdown" class="manage-dropdown__menu">
-                  <RouterLink
-                    v-if="canManageWorld"
-                    class="manage-dropdown__item"
-                    :to="{ name: 'world-edit', params: { worldId: world.worldId } }"
-                    @click="showManageDropdown = false"
-                  >
-                    编辑世界信息
-                  </RouterLink>
-                  <button
-                    v-if="world.allowFork"
-                    type="button"
-                    class="manage-dropdown__item"
-                    @click="showManageDropdown = false; openForkModal()"
-                  >
-                    Fork 此世界观
+              <div class="manage-action-group">
+                <div ref="manageDropdownRef" class="manage-dropdown">
+                  <button type="button" class="action-link" @click.stop="toggleManageDropdown">
+                    管理世界 ▾
                   </button>
-                  <button
-                    v-if="canManageWorld"
-                    type="button"
-                    class="manage-dropdown__item"
-                    @click="showManageDropdown = false; openJoinModal('invite')"
-                  >
-                    邀请成员
-                  </button>
-                  <RouterLink
-                    v-if="canManageWorld"
-                    class="manage-dropdown__item"
-                    :to="{ name: 'world-members', params: { worldId: world.worldId } }"
-                    @click="showManageDropdown = false"
-                  >
-                    成员与申请
-                  </RouterLink>
+                  <div v-if="showManageDropdown" class="manage-dropdown__menu">
+                    <RouterLink
+                      v-if="canManageWorld"
+                      class="manage-dropdown__item"
+                      :to="{ name: 'world-edit', params: { worldId: world.worldId } }"
+                      @click="showManageDropdown = false"
+                    >
+                      编辑世界信息
+                    </RouterLink>
+                    <button
+                      v-if="world.allowFork"
+                      type="button"
+                      class="manage-dropdown__item"
+                      @click="showManageDropdown = false; openForkModal()"
+                    >
+                      Fork 此世界观
+                    </button>
+                    <button
+                      v-if="canManageWorld"
+                      type="button"
+                      class="manage-dropdown__item"
+                      @click="showManageDropdown = false; openJoinModal('invite')"
+                    >
+                      邀请成员
+                    </button>
+                    <RouterLink
+                      v-if="canManageWorld"
+                      class="manage-dropdown__item"
+                      :to="{ name: 'world-members', params: { worldId: world.worldId } }"
+                      @click="showManageDropdown = false"
+                    >
+                      成员与申请
+                    </RouterLink>
+                  </div>
                 </div>
+                <span v-if="world.viewer.role" class="role-badge">你的权限：{{ formatRole(world.viewer.role) }}</span>
               </div>
               <RouterLink
                 class="action-link"
@@ -1432,10 +1434,16 @@ watch(
 .detail-hero__actions {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
   padding-top: 14px;
   border-top: 1px solid var(--color-line);
+}
+
+.manage-action-group {
+  display: inline-grid;
+  gap: 7px;
+  justify-items: start;
 }
 
 .manage-dropdown {
