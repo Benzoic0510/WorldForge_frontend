@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
-import { listWorlds } from '@/api/world'
+import { getWorldDetail, listWorlds } from '@/api/world'
 import { ApiError } from '@/api/http'
 import hotIconUrl from '@/svgs/hot_fill.svg'
 import filterIconUrl from '@/svgs/search_list.svg'
@@ -90,7 +90,8 @@ async function fetchWorlds(options: { append?: boolean } = {}) {
       pageSize: 12
     })
 
-    worlds.value = append ? worlds.value.concat(data.items) : data.items
+    const hydratedItems = await hydrateWorldListItems(data.items)
+    worlds.value = append ? worlds.value.concat(hydratedItems) : hydratedItems
     total.value = data.total
     totalPages.value = data.totalPages
   } catch (error) {
@@ -103,6 +104,24 @@ async function fetchWorlds(options: { append?: boolean } = {}) {
     loading.value = false
     loadingMore.value = false
   }
+}
+
+async function hydrateWorldListItems(items: WorldListItem[]) {
+  return Promise.all(
+    items.map(async (item) => {
+      try {
+        const detail = await getWorldDetail(item.worldId)
+        return {
+          ...item,
+          description: detail.description,
+          coverImageUrl: detail.coverImageUrl || item.coverImageUrl,
+          tags: detail.tags.length > 0 ? detail.tags : item.tags
+        }
+      } catch {
+        return item
+      }
+    })
+  )
 }
 
 async function handleSearchSubmit() {
@@ -912,7 +931,7 @@ h1 {
   right: 0;
   display: -webkit-box;
   overflow: hidden;
-  height: 84px;
+  height: calc(0.9rem * 1.5 * 10);
   margin-top: 0;
   color: var(--color-muted);
   font-size: 0.9rem;
@@ -923,7 +942,7 @@ h1 {
     opacity 180ms ease 60ms,
     transform 210ms ease 40ms;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 5;
+  -webkit-line-clamp: 10;
 }
 
 .world-card:hover .world-main p {
@@ -945,7 +964,7 @@ h1 {
 
 .tag-list {
   position: absolute;
-  top: 128px;
+  top: calc(34px + (0.9rem * 1.5 * 10) + 16px);
   left: 0;
   right: 0;
   display: flex;

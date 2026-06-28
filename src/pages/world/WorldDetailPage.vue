@@ -2258,7 +2258,7 @@ watch(
   display: grid;
   grid-template-columns: minmax(260px, 0.34fr) minmax(0, 1fr);
   gap: 18px;
-  align-items: stretch;
+  align-items: start;
 }
 
 .storylines-summary-card,
@@ -2272,7 +2272,7 @@ watch(
 .storylines-summary-card {
   display: grid;
   gap: 14px;
-  align-content: space-between;
+  align-content: start;
   padding: 18px 20px;
 }
 

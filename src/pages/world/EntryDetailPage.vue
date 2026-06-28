@@ -190,6 +190,13 @@ watch(
               &larr; 返回上一个词条
             </button>
           </div>
+          <RouterLink
+            v-if="canEditEntry"
+            class="entry-edit-link"
+            :to="{ name: 'entry-edit', params: { worldId, entryId } }"
+          >
+            编辑词条
+          </RouterLink>
           <div class="tag-list" aria-label="标签">
             <span v-for="tag in entry.tags" :key="tag">{{ tag }}</span>
           </div>
@@ -213,13 +220,6 @@ watch(
         </article>
 
         <aside class="entry-side">
-          <RouterLink
-            v-if="canEditEntry"
-            class="entry-edit-link"
-            :to="{ name: 'entry-edit', params: { worldId, entryId } }"
-          >
-            编辑词条
-          </RouterLink>
           <section class="side-panel">
             <p class="eyebrow">Entry Info</p>
             <dl class="meta-list">
@@ -393,9 +393,8 @@ watch(
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: var(--entry-side-item-width);
   min-height: 40px;
-  padding: 0 18px;
+  padding: 0 14px;
   border-radius: 8px;
   color: #fff;
   background: #103b31;
@@ -432,28 +431,25 @@ watch(
 .tag-list span {
   display: inline-flex;
   align-items: center;
-  min-height: 34px;
-  padding: 0 14px;
+  min-height: 28px;
+  padding: 0 10px;
   border: 1px solid var(--color-line);
   border-radius: 999px;
   color: #305349;
   background: rgb(232 241 237 / 62%);
-  font-size: 0.94rem;
-  font-weight: 800;
+  font-size: 0.82rem;
+  font-weight: 700;
 }
 
 .entry-layout {
   display: grid;
-  grid-template-columns: minmax(min(100%, 360px), fit-content(78ch)) minmax(280px, 320px);
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
   gap: 20px;
-  align-items: start;
-  justify-content: start;
+  align-items: stretch;
 }
 
 .entry-content {
-  width: fit-content;
-  max-width: 100%;
-  min-height: 220px;
+  min-height: 460px;
   padding: 34px 38px;
 }
 
@@ -501,11 +497,9 @@ watch(
 }
 
 .entry-side {
-  --entry-side-item-width: 238px;
   display: grid;
-  gap: 12px;
-  align-self: start;
-  justify-items: start;
+  gap: 16px;
+  align-self: stretch;
 }
 
 .side-panel,
@@ -516,19 +510,19 @@ watch(
 .side-panel {
   display: grid;
   align-content: start;
-  width: fit-content;
 }
 
 .meta-list {
   display: grid;
+  grid-template-rows: repeat(3, minmax(0, 1fr));
   gap: 12px;
+  height: 100%;
   margin: 0;
 }
 
 .meta-list div {
   display: grid;
   gap: 6px;
-  width: var(--entry-side-item-width);
   min-height: 112px;
   align-content: center;
   padding: 14px 16px;
