@@ -692,58 +692,62 @@ watch(
             <template v-else>
               <!-- 未登录用户 -->
               <template v-if="!isAuthenticated">
-                <RouterLink
-                  class="action-link"
-                  :to="{ name: 'world-studio', params: { worldId: world.worldId }, query: { view: 'entries' } }"
-                >
-                  查看词条
-                </RouterLink>
-                <RouterLink
-                  class="action-link action-link--primary"
-                  :to="{ name: 'login', query: { redirect: $route.fullPath } }"
-                >
-                  登录后加入
-                </RouterLink>
+                <div class="detail-hero__button-row">
+                  <RouterLink
+                    class="action-link"
+                    :to="{ name: 'world-studio', params: { worldId: world.worldId }, query: { view: 'entries' } }"
+                  >
+                    查看词条
+                  </RouterLink>
+                  <RouterLink
+                    class="action-link action-link--primary"
+                    :to="{ name: 'login', query: { redirect: $route.fullPath } }"
+                  >
+                    登录后加入
+                  </RouterLink>
+                </div>
               </template>
 
               <!-- 已登录但未加入 -->
               <template v-else>
-                <RouterLink
-                  class="action-link"
-                  :to="{ name: 'world-studio', params: { worldId: world.worldId }, query: { view: 'entries' } }"
-                >
-                  查看词条
-                </RouterLink>
-
-                <!-- 公开世界 — 直接加入 -->
-                <template v-if="canJoinDirectly">
-                  <button
-                    type="button"
-                    class="action-link action-link--primary"
-                    :disabled="joinLoading"
-                    @click="executeJoinWorld"
+                <div class="detail-hero__button-row">
+                  <RouterLink
+                    class="action-link"
+                    :to="{ name: 'world-studio', params: { worldId: world.worldId }, query: { view: 'entries' } }"
                   >
-                    {{ joinLoading ? '正在加入...' : '加入世界' }}
-                  </button>
-                  <div v-if="joinError" class="join-error" role="alert">{{ joinError }}</div>
-                </template>
+                    查看词条
+                  </RouterLink>
 
-                <!-- 受保护世界 — 申请加入 -->
-                <template v-else-if="canApplyJoin">
-                  <button
-                    type="button"
-                    class="action-link action-link--primary"
-                    :disabled="joinLoading"
-                    @click="openJoinModal('apply')"
-                  >
-                    申请加入
-                  </button>
-                </template>
+                  <!-- 公开世界 — 直接加入 -->
+                  <template v-if="canJoinDirectly">
+                    <button
+                      type="button"
+                      class="action-link action-link--primary"
+                      :disabled="joinLoading"
+                      @click="executeJoinWorld"
+                    >
+                      {{ joinLoading ? '正在加入...' : '加入世界' }}
+                    </button>
+                  </template>
 
-                <!-- 私有世界 — 仅限邀请 -->
-                <template v-else>
-                  <p class="invite-only-note">该世界仅能通过管理员邀请加入。</p>
-                </template>
+                  <!-- 受保护世界 — 申请加入 -->
+                  <template v-else-if="canApplyJoin">
+                    <button
+                      type="button"
+                      class="action-link action-link--primary"
+                      :disabled="joinLoading"
+                      @click="openJoinModal('apply')"
+                    >
+                      申请加入
+                    </button>
+                  </template>
+
+                  <!-- 私有世界 — 仅限邀请 -->
+                  <template v-else>
+                    <p class="invite-only-note">该世界仅能通过管理员邀请加入。</p>
+                  </template>
+                </div>
+                <div v-if="joinError" class="join-error" role="alert">{{ joinError }}</div>
               </template>
             </template>
           </div>
@@ -1575,7 +1579,7 @@ watch(
 
 .detail-hero__button-row {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 8px;
 }
