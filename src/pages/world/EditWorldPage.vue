@@ -697,8 +697,8 @@ onBeforeUnmount(() => {
 }
 
 .edit-header h1 {
-  font-size: clamp(2.2rem, 4.2vw, 4.7rem);
-  line-height: 1.02;
+  font-size: clamp(2rem, 4vw, 3.2rem);
+  line-height: 1.04;
 }
 
 .eyebrow {
