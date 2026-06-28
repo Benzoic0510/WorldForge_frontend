@@ -29,10 +29,17 @@ export async function onRequest({ request, env, params }) {
 }
 
 function proxyWebSocket(request, targetUrl) {
-  const websocketUrl = new URL(targetUrl)
-  websocketUrl.protocol = websocketUrl.protocol === 'https:' ? 'wss:' : 'ws:'
+  const headers = new Headers(request.headers)
+  const targetOrigin = `${targetUrl.protocol}//${targetUrl.host}`
 
-  return fetch(new Request(websocketUrl, request))
+  headers.set('origin', targetOrigin)
+  headers.set('x-forwarded-host', new URL(request.url).host)
+  headers.set('x-forwarded-proto', new URL(request.url).protocol.replace(':', ''))
+
+  return fetch(targetUrl, {
+    method: request.method,
+    headers
+  })
 }
 
 function resolveTargetOrigin(value) {
