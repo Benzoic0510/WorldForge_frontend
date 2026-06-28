@@ -835,13 +835,13 @@ h1 {
 }
 
 .world-card {
-  --world-cover-height: 300px;
+  --world-cover-height: 280px;
   --world-reveal-offset: calc((var(--world-cover-height) + 18px) * -1);
   position: relative;
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
   gap: 8px;
-  height: 460px;
+  height: 450px;
   padding: 14px;
   border: 1px solid #dde5df;
   border-radius: 8px;
@@ -1193,8 +1193,8 @@ h1 {
   }
 
   .world-card {
-    --world-cover-height: 260px;
-    height: 420px;
+    --world-cover-height: 280px;
+    height: 450px;
   }
 
   .world-card:hover .world-reveal {

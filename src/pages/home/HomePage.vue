@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { useAuthStore } from '@/stores/auth'
 import { listWorlds } from '@/api/world'
 import { ApiError } from '@/api/http'
 import type { WorldListItem } from '@/types/world'
@@ -11,19 +10,15 @@ interface DiscoverWorld {
   summary: string
   tags: string[]
   creator: string
+  coverImageUrl: string
   updatedAt: string
   entryCount: number
-  tagCount: number
   visibilityLabel: string
 }
-
-const authStore = useAuthStore()
 
 const discoverWorlds = ref<DiscoverWorld[]>([])
 const discoverLoading = ref(true)
 const discoverError = ref('')
-
-const followingFeed: { id: string; title: string; detail: string; time: string }[] = []
 
 function toDiscoverWorld(item: WorldListItem): DiscoverWorld {
   return {
@@ -32,9 +27,9 @@ function toDiscoverWorld(item: WorldListItem): DiscoverWorld {
     summary: item.description,
     tags: item.tags,
     creator: item.creator.nickname,
+    coverImageUrl: item.coverImageUrl,
     updatedAt: formatRelativeTime(item.updatedAt),
     entryCount: item.entryCount,
-    tagCount: item.tags.length,
     visibilityLabel:
       item.visibility === 'public' ? '公开' : item.visibility === 'protected' ? '受限' : '私有'
   }
@@ -111,7 +106,7 @@ onMounted(async () => {
       </div>
     </section>
 
-    <section class="feed-layout page-container" aria-label="首页信息流">
+    <section class="feed-layout page-container" aria-label="首页推荐世界观">
       <div class="feed-section">
         <div class="section-heading">
           <p class="eyebrow">Discover</p>
@@ -134,58 +129,51 @@ onMounted(async () => {
             :to="{ name: 'world-detail', params: { worldId: world.id } }"
             class="world-card"
           >
-            <div class="world-card__header">
-              <span>{{ world.updatedAt }}</span>
-              <strong>{{ world.creator }}</strong>
+            <div class="world-reveal">
+              <div class="world-cover" aria-hidden="true">
+                <img v-if="world.coverImageUrl" :src="world.coverImageUrl" alt="">
+                <span v-else>{{ world.title.charAt(0) }}</span>
+              </div>
+
+              <div class="world-main">
+                <div class="world-title-line">
+                  <h3>{{ world.title }}</h3>
+                  <span class="visibility-chip">{{ world.visibilityLabel }}</span>
+                </div>
+                <p>{{ world.summary || '暂无简介。' }}</p>
+                <div class="tag-list" aria-label="标签">
+                  <span v-for="tag in world.tags.slice(0, 4)" :key="tag">{{ tag }}</span>
+                  <span v-if="world.tags.length > 4">+{{ world.tags.length - 4 }}</span>
+                </div>
+              </div>
             </div>
-            <h3>{{ world.title }}</h3>
-            <p>{{ world.summary }}</p>
-            <div class="tag-list" aria-label="标签">
-              <span v-for="tag in world.tags" :key="tag">{{ tag }}</span>
+
+            <div class="world-side">
+              <div class="creator-line">
+                <span class="creator-avatar" aria-hidden="true">{{ world.creator.charAt(0) }}</span>
+                <strong>{{ world.creator }}</strong>
+              </div>
+
+              <div class="world-metrics">
+                <span>{{ world.entryCount }} 词条</span>
+                <small>{{ world.updatedAt }}</small>
+              </div>
+
+              <span class="detail-button">
+                <svg
+                  class="detail-button__icon"
+                  viewBox="0 0 16 16"
+                  aria-hidden="true"
+                  focusable="false"
+                >
+                  <path d="M6 3.5 10.5 8 6 12.5" />
+                </svg>
+                <span class="detail-button__text">查看详情</span>
+              </span>
             </div>
-            <dl class="world-stats">
-              <div>
-                <dt>词条</dt>
-                <dd>{{ world.entryCount }}</dd>
-              </div>
-              <div>
-                <dt>标签</dt>
-                <dd>{{ world.tagCount }}</dd>
-              </div>
-              <div>
-                <dt>可见性</dt>
-                <dd>{{ world.visibilityLabel }}</dd>
-              </div>
-            </dl>
           </RouterLink>
         </div>
       </div>
-
-      <aside class="following-panel" aria-labelledby="following-title">
-        <div class="section-heading">
-          <p class="eyebrow">Following</p>
-          <h2 id="following-title">我关注的动态</h2>
-        </div>
-
-        <ol v-if="!authStore.isAuthenticated" class="activity-list">
-          <li class="activity-list__placeholder">
-            <p>登录后查看你参与世界的最近动态</p>
-          </li>
-        </ol>
-        <ol v-else-if="followingFeed.length === 0" class="activity-list">
-          <li class="activity-list__placeholder">
-            <strong>动态功能开发中</strong>
-            <p>关注动态需要后端提供审计日志查询接口，功能即将上线。</p>
-          </li>
-        </ol>
-        <ol v-else class="activity-list">
-          <li v-for="item in followingFeed" :key="item.id">
-            <time>{{ item.time }}</time>
-            <strong>{{ item.title }}</strong>
-            <p>{{ item.detail }}</p>
-          </li>
-        </ol>
-      </aside>
     </section>
 
   </main>
@@ -294,9 +282,6 @@ h1 {
 }
 
 .feed-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
-  gap: clamp(28px, 5vw, 56px);
   padding-top: 48px;
 }
 
@@ -315,134 +300,283 @@ h1 {
 .world-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
-}
-
-.world-card,
-.following-panel {
-  border: 1px solid var(--color-line);
-  border-radius: 8px;
-  background: rgb(255 255 255 / 58%);
+  gap: 18px;
 }
 
 .world-card {
+  --world-cover-height: 280px;
+  --world-reveal-offset: calc((var(--world-cover-height) + 18px) * -1);
+  position: relative;
   display: grid;
-  gap: 16px;
-  padding: 20px;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 8px;
+  height: 450px;
+  padding: 14px;
+  border: 1px solid #dde5df;
+  border-radius: 8px;
   color: inherit;
+  background: #fffdfa;
+  overflow: hidden;
   text-decoration: none;
-  transition: box-shadow 0.2s ease, transform 0.2s ease;
+  transition:
+    transform 150ms ease,
+    border-color 150ms ease,
+    box-shadow 150ms ease;
 }
 
 .world-card:hover {
-  box-shadow: 0 4px 16px rgb(0 0 0 / 10%);
   transform: translateY(-2px);
+  border-color: #b8ccc2;
+  box-shadow: 0 12px 24px rgb(24 33 31 / 8%);
 }
 
-.world-card__header {
-  display: flex;
+.world-reveal {
+  display: grid;
   gap: 12px;
-  justify-content: space-between;
+  min-width: 0;
+  min-height: 0;
+  overflow: visible;
+  transition: transform 230ms ease;
+  will-change: transform;
+}
+
+.world-card:hover .world-reveal {
+  transform: translateY(var(--world-reveal-offset));
+}
+
+.world-cover {
+  position: relative;
+  z-index: 3;
+  display: grid;
+  width: 100%;
+  height: var(--world-cover-height);
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid #e2e7e3;
+  border-radius: 8px;
+  color: #103b31;
+  background: #edf4f0;
+  font-family: var(--font-display);
+  font-size: 2rem;
+  font-weight: 900;
+}
+
+.world-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.world-main {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  gap: 0;
+  min-width: 0;
+  min-height: 28px;
+  align-content: start;
+  overflow: visible;
+}
+
+.world-title-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.world-title-line h3 {
+  overflow: hidden;
+  margin: 0;
+  font-size: 1.2rem;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.world-card p {
+  position: absolute;
+  top: 34px;
+  left: 0;
+  right: 0;
+  display: -webkit-box;
+  overflow: hidden;
+  height: calc(0.9rem * 1.5 * 10);
+  margin-top: 0;
+  color: var(--color-muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  opacity: 0;
+  transform: translateY(28px);
+  transition:
+    opacity 180ms ease 60ms,
+    transform 210ms ease 40ms;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 10;
+}
+
+.world-card:hover p {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.visibility-chip {
+  flex: 0 0 auto;
+  min-height: 24px;
+  padding: 3px 8px;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  color: #305349;
+  background: #f5faf7;
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.tag-list {
+  position: absolute;
+  top: calc(34px + (0.9rem * 1.5 * 10) + 16px);
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  height: 56px;
+  overflow: hidden;
+  opacity: 0;
+  transform: translateY(34px);
+  transition:
+    opacity 180ms ease 80ms,
+    transform 210ms ease 60ms;
+}
+
+.world-card:hover .tag-list {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.tag-list span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border: 1px solid #dfe7e2;
+  border-radius: 999px;
+  color: #305349;
+  background: #f7faf8;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.world-side {
+  position: relative;
+  z-index: 4;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px 12px;
+  align-items: end;
+  align-self: end;
+}
+
+.creator-line {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  gap: 8px;
+}
+
+.creator-avatar {
+  display: grid;
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid #dbe5df;
+  border-radius: 50%;
+  color: #103b31;
+  background: #edf4f0;
+  font-size: 0.84rem;
+  font-weight: 900;
+}
+
+.creator-line strong {
+  overflow: hidden;
+  color: var(--color-ink);
+  font-size: 0.88rem;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.world-metrics {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  grid-column: 1;
   color: var(--color-muted);
   font-size: 0.82rem;
 }
 
-.world-card h3 {
-  margin: 0;
-  font-size: 1.42rem;
-  line-height: 1.18;
-}
-
-.world-card p {
-  margin: 0;
-  color: var(--color-muted);
-  line-height: 1.75;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
-.tag-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.tag-list span {
-  padding: 5px 8px;
-  border: 1px solid rgb(20 115 90 / 18%);
-  border-radius: 8px;
-  color: var(--color-accent);
-  background: rgb(20 115 90 / 7%);
-  font-size: 0.78rem;
+.world-metrics span {
+  color: var(--color-ink);
   font-weight: 800;
 }
 
-.world-stats {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  margin: 0;
-  padding-top: 12px;
-  border-top: 1px solid var(--color-line);
+.world-metrics small {
+  color: #61706b;
+  font-size: 0.78rem;
 }
 
-.world-stats div {
-  display: grid;
-  gap: 4px;
-}
-
-.world-stats dt {
-  color: var(--color-muted);
-  font-size: 0.76rem;
-}
-
-.world-stats dd {
-  margin: 0;
-  color: var(--color-ink);
+.detail-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  width: 92px;
+  min-height: 34px;
+  padding: 0 14px;
+  border-radius: 6px;
+  color: #fff;
+  background: #14735a;
+  font-size: 0.78rem;
   font-weight: 900;
 }
 
-.following-panel {
-  align-self: start;
-  padding: 22px;
+.detail-button__icon {
+  position: absolute;
+  left: 10px;
+  width: 16px;
+  height: 16px;
+  overflow: visible;
+  stroke: currentcolor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+  opacity: 0;
+  transform: translateX(-10px);
+  transition:
+    opacity 160ms ease,
+    transform 180ms ease;
 }
 
-.activity-list {
-  display: grid;
-  gap: 18px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
+.detail-button__text {
+  transition: transform 180ms ease;
 }
 
-.activity-list li {
-  display: grid;
-  gap: 7px;
-  padding-bottom: 18px;
-  border-bottom: 1px solid var(--color-line);
+.world-card:hover .detail-button {
+  background: #103b31;
 }
 
-.activity-list li:last-child {
-  padding-bottom: 0;
-  border-bottom: 0;
+.world-card:hover .detail-button__icon {
+  opacity: 1;
+  transform: translateX(0);
 }
 
-.activity-list time {
-  color: var(--color-accent);
-  font-size: 0.8rem;
-  font-weight: 900;
-}
-
-.activity-list strong {
-  color: var(--color-ink);
-  line-height: 1.45;
-}
-
-.activity-list p {
-  margin: 0;
-  color: var(--color-muted);
-  font-size: 0.92rem;
-  line-height: 1.7;
+.world-card:hover .detail-button__text {
+  transform: translateX(7px);
 }
 
 @media (max-width: 1040px) {
@@ -518,12 +652,4 @@ h1 {
   background: rgb(108 36 36 / 6%);
 }
 
-.activity-list__placeholder {
-  padding-bottom: 0;
-  border-bottom: 0;
-}
-
-.activity-list__placeholder p {
-  color: var(--color-muted);
-}
 </style>
