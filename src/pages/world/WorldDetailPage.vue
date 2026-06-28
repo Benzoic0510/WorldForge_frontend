@@ -569,7 +569,7 @@ watch(
           <!-- 操作按钮横条 -->
           <div class="detail-hero__actions">
             <template v-if="canEditWorld">
-              <div class="manage-action-group">
+              <div class="detail-hero__button-row">
                 <div ref="manageDropdownRef" class="manage-dropdown">
                   <button type="button" class="action-link" @click.stop="toggleManageDropdown">
                     管理世界 ▾
@@ -609,27 +609,27 @@ watch(
                     </RouterLink>
                   </div>
                 </div>
-                <span v-if="world.viewer.role" class="role-badge">你的权限：{{ formatRole(world.viewer.role) }}</span>
+                <RouterLink
+                  class="action-link"
+                  :to="{ name: 'world-studio', params: { worldId: world.worldId }, query: { view: 'entries' } }"
+                >
+                  进入创作
+                </RouterLink>
+                <RouterLink
+                  class="action-link"
+                  :to="{ name: 'rpg-chat', params: { worldId: world.worldId } }"
+                >
+                  角色扮演
+                </RouterLink>
+                <RouterLink
+                  v-if="canReviewWorld"
+                  class="action-link"
+                  :to="{ name: 'review-submissions', params: { worldId: world.worldId } }"
+                >
+                  审核
+                </RouterLink>
               </div>
-              <RouterLink
-                class="action-link"
-                :to="{ name: 'world-studio', params: { worldId: world.worldId }, query: { view: 'entries' } }"
-              >
-                进入创作
-              </RouterLink>
-              <RouterLink
-                class="action-link"
-                :to="{ name: 'rpg-chat', params: { worldId: world.worldId } }"
-              >
-                角色扮演
-              </RouterLink>
-              <RouterLink
-                v-if="canReviewWorld"
-                class="action-link"
-                :to="{ name: 'review-submissions', params: { worldId: world.worldId } }"
-              >
-                审核
-              </RouterLink>
+              <span v-if="world.viewer.role" class="role-badge">你的权限：{{ formatRole(world.viewer.role) }}</span>
             </template>
 
             <template v-else>
@@ -1432,18 +1432,17 @@ watch(
 
 /* ---------- Hero actions strip ---------- */
 .detail-hero__actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  gap: 8px;
-  padding-top: 14px;
-  border-top: 1px solid var(--color-line);
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+  padding-top: 10px;
 }
 
-.manage-action-group {
-  display: inline-grid;
-  gap: 7px;
-  justify-items: start;
+.detail-hero__button-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
 }
 
 .manage-dropdown {

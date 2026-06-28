@@ -800,11 +800,13 @@ watch(
 }
 
 .work-world-card {
+  --work-world-cover-height: 258px;
+  --work-world-reveal-offset: calc((var(--work-world-cover-height) + 18px) * -1);
   position: relative;
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
   gap: 8px;
-  height: 306px;
+  height: 412px;
   padding: 14px;
   overflow: hidden;
   border: 1px solid #dde5df;
@@ -835,7 +837,7 @@ watch(
 }
 
 .work-world-card:hover .work-world-reveal {
-  transform: translateY(-166px);
+  transform: translateY(var(--work-world-reveal-offset));
 }
 
 .work-world-cover {
@@ -843,7 +845,7 @@ watch(
   z-index: 3;
   display: grid;
   width: 100%;
-  height: 152px;
+  height: var(--work-world-cover-height);
   place-items: center;
   overflow: hidden;
   border: 1px solid #e2e7e3;
@@ -858,7 +860,7 @@ watch(
 .work-world-cover img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
 }
 
 .work-world-main {
@@ -1184,7 +1186,8 @@ watch(
   }
 
   .work-world-card {
-    height: 286px;
+    --work-world-cover-height: 228px;
+    height: 378px;
   }
 
   .work-world-grid {
@@ -1192,7 +1195,7 @@ watch(
   }
 
   .work-world-card:hover .work-world-reveal {
-    transform: translateY(-166px);
+    transform: translateY(var(--work-world-reveal-offset));
   }
 
   .desk-action {

@@ -502,9 +502,19 @@ onMounted(async () => {
 
 /* Timeline */
 .timeline {
+  position: relative;
   display: grid;
   gap: 0;
-  position: relative;
+}
+
+.timeline::before {
+  content: '';
+  position: absolute;
+  top: 35px;
+  bottom: 35px;
+  left: 11px;
+  width: 2px;
+  background: rgb(16 59 49 / 14%);
 }
 
 .timeline-item {
@@ -512,20 +522,6 @@ onMounted(async () => {
   display: grid;
   grid-template-columns: 24px 1fr;
   gap: 16px;
-}
-
-.timeline-item::before {
-  content: '';
-  position: absolute;
-  top: 42px;
-  bottom: -6px;
-  left: 11px;
-  width: 2px;
-  background: rgb(16 59 49 / 14%);
-}
-
-.timeline-item:last-child::before {
-  display: none;
 }
 
 .timeline-marker {

@@ -817,7 +817,7 @@ h1 {
 
 .world-card {
   --world-cover-height: 258px;
-  --world-reveal-offset: calc((var(--world-cover-height) + 12px) * -1);
+  --world-reveal-offset: calc((var(--world-cover-height) + 18px) * -1);
   position: relative;
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
