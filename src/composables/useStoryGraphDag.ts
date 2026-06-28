@@ -195,6 +195,7 @@ export function buildPushGraph(
         pushId: push.submissionId,
         lineId,
         title: push.summary,
+        content: push.content,
         lineType: lineType as 'main' | 'fork' | 'merge',
         lineName,
         authorId: push.submitter.userId,

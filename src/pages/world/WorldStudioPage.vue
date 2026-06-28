@@ -4,11 +4,11 @@ import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { createEntry, listEntries } from '@/api/entry'
 import { ApiError } from '@/api/http'
 import { getWorldDetail } from '@/api/world'
-import { getStoryGraph, createForkLine, createMergeLine, listApprovedStoryPushes } from '@/api/storyline'
+import { getStoryGraph, getStoryPushDetail, createForkLine, createMergeLine, listApprovedStoryPushes } from '@/api/storyline'
 import { useAuthStore } from '@/stores/auth'
 import { buildPushGraph, pushGraphToVis } from '@/composables/useStoryGraphDag'
 import type { EntryDetail, EntryListItem } from '@/types/entry'
-import type { PushGraphData, SubmissionListItem } from '@/types/storyline'
+import type { PushGraphData, PushGraphNode, SubmissionListItem } from '@/types/storyline'
 import type { PageResponse, WorldDetail } from '@/types/world'
 import { Network } from 'vis-network'
 import { DataSet } from 'vis-data'
@@ -55,11 +55,14 @@ const graphError = ref('')
 const graphContainerRef = ref<HTMLElement | null>(null)
 let network: Network | null = null
 
-const selectedNodeId = ref<string | null>(null)
-const selectedNode = computed(() => {
-  if (!selectedNodeId.value || !graphData.value) return null
-  return graphData.value.nodes.find(n => n.pushId === selectedNodeId.value) ?? null
-})
+type GraphPopoverMode = 'content' | 'actions'
+
+const graphPopover = ref<{
+  mode: GraphPopoverMode
+  node: PushGraphNode
+  x: number
+  y: number
+} | null>(null)
 
 const pushCount = computed(() =>
   graphData.value?.nodes.filter(n => !n.isHead).length ?? 0
@@ -486,6 +489,90 @@ function dismissToast() {
   if (toastTimer.value) clearTimeout(toastTimer.value)
 }
 
+function findGraphNode(pushId: string): PushGraphNode | null {
+  return graphData.value?.nodes.find(n => n.pushId === pushId) ?? null
+}
+
+function getPointerPosition(params: any) {
+  const sourceEvent = params?.event?.srcEvent
+  let rawX = typeof sourceEvent?.clientX === 'number' ? sourceEvent.clientX : null
+  let rawY = typeof sourceEvent?.clientY === 'number' ? sourceEvent.clientY : null
+
+  if ((rawX == null || rawY == null) && params?.pointer?.DOM && graphContainerRef.value) {
+    const rect = graphContainerRef.value.getBoundingClientRect()
+    rawX = rect.left + params.pointer.DOM.x
+    rawY = rect.top + params.pointer.DOM.y
+  }
+
+  rawX ??= window.innerWidth / 2
+  rawY ??= window.innerHeight / 2
+
+  return {
+    x: Math.min(rawX + 14, window.innerWidth - 340),
+    y: Math.min(rawY + 14, window.innerHeight - 260),
+  }
+}
+
+function showGraphPopover(mode: GraphPopoverMode, node: PushGraphNode, params: any) {
+  const position = getPointerPosition(params)
+  graphPopover.value = {
+    mode,
+    node,
+    x: Math.max(12, position.x),
+    y: Math.max(12, position.y),
+  }
+}
+
+function closeGraphPopover() {
+  graphPopover.value = null
+}
+
+function graphNodeText(node: PushGraphNode): string {
+  if (node.isHead) {
+    return node.isPlaceholder
+      ? '这条故事线还没有已通过的推送。'
+      : `${node.lineName} 的起点`
+  }
+  return node.content?.trim() || node.title || '这次推送没有文本内容。'
+}
+
+function graphNodeTitle(node: PushGraphNode): string {
+  return node.isHead ? node.lineName : node.title
+}
+
+async function hydrateApprovedPushContents(items: SubmissionListItem[]): Promise<SubmissionListItem[]> {
+  return Promise.all(
+    items.map(async push => {
+      if (push.content?.trim()) {
+        return push
+      }
+
+      try {
+        const detail = await getStoryPushDetail(worldId.value, push.submissionId)
+        return { ...push, content: detail.content }
+      } catch {
+        return push
+      }
+    })
+  )
+}
+
+function openLineContent(node: PushGraphNode) {
+  closeGraphPopover()
+  router.push({ name: 'line-content', params: { worldId: worldId.value, lineId: node.lineId } })
+}
+
+function openPushDetail(node: PushGraphNode) {
+  if (node.isHead) return
+  closeGraphPopover()
+  router.push({ name: 'push-detail', params: { worldId: worldId.value, submissionId: node.pushId } })
+}
+
+function openForkFromNode(node: PushGraphNode) {
+  closeGraphPopover()
+  openForkModal(node.lineId, node.isHead ? undefined : node.pushId)
+}
+
 function createNetwork(data: PushGraphData) {
   if (!graphContainerRef.value) return
 
@@ -498,9 +585,10 @@ function createNetwork(data: PushGraphData) {
   )
 
   network.on('doubleClick', (params: any) => {
+    closeGraphPopover()
     if (params.nodes.length === 0) return
     const pushId = params.nodes[0] as string
-    const pushNode = graphData.value?.nodes.find(n => n.pushId === pushId)
+    const pushNode = findGraphNode(pushId)
     if (!pushNode) return
     if (pushNode.isHead) {
       router.push({ name: 'line-content', params: { worldId: worldId.value, lineId: pushNode.lineId } })
@@ -511,9 +599,30 @@ function createNetwork(data: PushGraphData) {
 
   network.on('click', (params: any) => {
     if (params.nodes.length > 0) {
-      selectedNodeId.value = params.nodes[0] as string
+      const pushNode = findGraphNode(params.nodes[0] as string)
+      if (pushNode) {
+        showGraphPopover('content', pushNode, params)
+      }
     } else {
-      selectedNodeId.value = null
+      closeGraphPopover()
+    }
+  })
+
+  network.on('dragStart', closeGraphPopover)
+  network.on('dragging', closeGraphPopover)
+  network.on('zoom', closeGraphPopover)
+  network.on('animationStarted', closeGraphPopover)
+
+  network.on('oncontext', (params: any) => {
+    params.event?.preventDefault?.()
+    const nodeId = network?.getNodeAt(params.pointer.DOM)
+    if (!nodeId) {
+      closeGraphPopover()
+      return
+    }
+    const pushNode = findGraphNode(String(nodeId))
+    if (pushNode) {
+      showGraphPopover('actions', pushNode, params)
     }
   })
 }
@@ -527,22 +636,26 @@ function destroyNetwork() {
 
 function zoomIn() {
   if (!network) return
+  closeGraphPopover()
   const scale = network.getScale()
   network.moveTo({ scale: scale * 1.3, animation: { duration: 300 } })
 }
 
 function zoomOut() {
   if (!network) return
+  closeGraphPopover()
   const scale = network.getScale()
   network.moveTo({ scale: scale / 1.3, animation: { duration: 300 } })
 }
 
 function fitToScreen() {
   if (!network) return
+  closeGraphPopover()
   network.fit({ animation: { duration: 500, easingFunction: 'easeInOutQuad' } })
 }
 
 function toggleGraphDirection() {
+  closeGraphPopover()
   graphDirection.value = graphDirection.value === 'UD' ? 'LR' : 'UD'
 }
 
@@ -556,7 +669,9 @@ async function loadGraph() {
       return
     }
 
-    const approvedPushes: SubmissionListItem[] = await listApprovedStoryPushes(worldId.value)
+    const approvedPushes: SubmissionListItem[] = await hydrateApprovedPushContents(
+      await listApprovedStoryPushes(worldId.value)
+    )
 
     graphData.value = buildPushGraph(storyGraph, approvedPushes)
   } catch (error) {
@@ -589,7 +704,7 @@ function switchView(view: 'entries' | 'graph') {
 
 // ── Graph reactions ──
 watch(graphData, async (data) => {
-  selectedNodeId.value = null
+  closeGraphPopover()
   if (!data) return
   await nextTick()
   await nextTick() // Extra tick to ensure v-show has taken effect and browser has laid out
@@ -878,6 +993,7 @@ onUnmounted(() => {
                 v-show="graphData && graphData.nodes.length > 0 && !graphLoading && !graphError"
                 ref="graphContainerRef"
                 class="dag-container"
+                @contextmenu.prevent
               ></div>
 
               <div class="graph-controls">
@@ -897,66 +1013,72 @@ onUnmounted(() => {
               </div>
             </div>
 
-            <!-- Node detail panel -->
-            <div v-if="selectedNode" class="node-detail-panel">
-              <div class="node-detail__info">
-                <p class="node-detail__title">
-                  <template v-if="selectedNode.isHead">{{ selectedNode.lineName }}</template>
-                  <template v-else>{{ selectedNode.title }}</template>
-                </p>
-                <p v-if="!selectedNode.isHead" class="node-detail__meta">
-                  {{ selectedNode.lineName }}（{{ selectedNode.lineType === 'main' ? '主线' : selectedNode.lineType === 'fork' ? '剧情分支' : '合并' }}）· {{ selectedNode.authorNickname }}
-                </p>
-                <p v-else class="node-detail__meta">
-                  {{ selectedNode.lineType === 'main' ? '主线' : selectedNode.lineType === 'fork' ? '剧情分支' : '合并' }}分支{{ selectedNode.isPlaceholder ? '（暂无推送）' : '' }}
-                </p>
-              </div>
-              <div class="node-detail__actions">
-                <button
-                  v-if="isMember && !(selectedNode.isHead && selectedNode.isPlaceholder)"
-                  type="button"
-                  class="studio-action"
-                  @click="openForkModal(selectedNode.lineId, selectedNode.isHead ? undefined : selectedNode.pushId)"
-                >
-                  从此创建剧情分支
-                </button>
-                <RouterLink
-                  v-if="isMember && selectedNode.isHead && !isMergedParentLine(selectedNode.lineId)"
-                  class="studio-action"
-                  :to="{ name: 'submit-push', params: { worldId }, query: { lineId: selectedNode.lineId } }"
-                >
-                  提交 Push
-                </RouterLink>
-                <span
-                  v-else-if="isMember && selectedNode.isHead && isMergedParentLine(selectedNode.lineId)"
-                  class="studio-action studio-action--disabled"
-                  title="该故事线已经被合并，不能再提交新的 Push"
-                >
-                  已合并
-                </span>
-                <RouterLink
-                  v-if="selectedNode.isHead"
-                  class="studio-action studio-action--primary"
-                  :to="{ name: 'line-content', params: { worldId, lineId: selectedNode.lineId } }"
-                >
-                  进入故事线详情
-                </RouterLink>
-                <RouterLink
-                  v-else
-                  class="studio-action studio-action--primary"
-                  :to="{ name: 'push-detail', params: { worldId, submissionId: selectedNode.pushId } }"
-                >
-                  进入推送详情
-                </RouterLink>
-                <button type="button" class="studio-action node-detail__close" @click="selectedNodeId = null">
-                  关闭
-                </button>
-              </div>
-            </div>
           </div>
         </div>
       </template>
     </section>
+
+    <Teleport to="body">
+      <Transition name="graph-popover">
+        <div
+          v-if="graphPopover"
+          class="graph-popover"
+          :class="`graph-popover--${graphPopover.mode}`"
+          :style="{ left: `${graphPopover.x}px`, top: `${graphPopover.y}px` }"
+          @click.stop
+          @contextmenu.prevent.stop
+        >
+          <template v-if="graphPopover.mode === 'content'">
+            <div class="graph-popover__header">
+              <span :class="['node-badge', formatNodeTypeClass(graphPopover.node.lineType)]">
+                {{ formatNodeType(graphPopover.node.lineType) }}
+              </span>
+              <strong>{{ graphNodeTitle(graphPopover.node) }}</strong>
+            </div>
+            <p class="graph-popover__meta" v-if="!graphPopover.node.isHead">
+              {{ graphPopover.node.lineName }} · {{ graphPopover.node.authorNickname }}
+            </p>
+            <div class="graph-popover__content">
+              {{ graphNodeText(graphPopover.node) }}
+            </div>
+          </template>
+
+          <template v-else>
+            <div class="graph-popover__header">
+              <span :class="['node-badge', formatNodeTypeClass(graphPopover.node.lineType)]">
+                {{ formatNodeType(graphPopover.node.lineType) }}
+              </span>
+              <strong>{{ graphNodeTitle(graphPopover.node) }}</strong>
+            </div>
+            <div class="graph-popover__actions">
+              <button
+                v-if="isMember && !(graphPopover.node.isHead && graphPopover.node.isPlaceholder)"
+                type="button"
+                class="graph-popover__action"
+                @click="openForkFromNode(graphPopover.node)"
+              >
+                在此创建剧情分支
+              </button>
+              <button
+                type="button"
+                class="graph-popover__action"
+                @click="openLineContent(graphPopover.node)"
+              >
+                查看该线内容
+              </button>
+              <button
+                v-if="!graphPopover.node.isHead"
+                type="button"
+                class="graph-popover__action graph-popover__action--primary"
+                @click="openPushDetail(graphPopover.node)"
+              >
+                进入推送详情
+              </button>
+            </div>
+          </template>
+        </div>
+      </Transition>
+    </Teleport>
 
     <!-- Create Entry Modal -->
     <Teleport to="body">
@@ -1581,10 +1703,7 @@ onUnmounted(() => {
 }
 
 .graph-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 14px;
-  align-items: start;
+  display: block;
 }
 
 .graph-canvas {
@@ -1632,52 +1751,107 @@ onUnmounted(() => {
   background: #fff;
 }
 
-/* Node detail panel */
-.node-detail-panel {
-  width: 300px;
-  align-self: start;
+.graph-popover {
+  position: fixed;
+  z-index: 220;
+  width: min(320px, calc(100vw - 24px));
   display: grid;
-  gap: 14px;
-  padding: 16px 18px;
-  border: 1px solid rgb(16 59 49 / 14%);
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid rgb(16 59 49 / 16%);
   border-radius: 8px;
-  background:
-    linear-gradient(180deg, rgb(255 255 255 / 68%), rgb(244 240 231 / 86%)),
-    rgb(255 255 255 / 56%);
-  box-shadow: var(--shadow-panel);
+  color: var(--color-ink);
+  background: rgb(255 253 250 / 96%);
+  box-shadow: 0 18px 46px rgb(24 33 31 / 16%);
+  backdrop-filter: blur(10px);
 }
 
-.node-detail__info {
+.graph-popover__header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+}
+
+.graph-popover__header strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  font-size: 0.98rem;
+  font-weight: 900;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.graph-popover__meta {
+  margin: -2px 0 0;
+  color: var(--color-muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.graph-popover__content {
+  max-height: 220px;
+  overflow: auto;
+  padding: 10px;
+  border: 1px solid rgb(16 59 49 / 8%);
+  border-radius: 6px;
+  color: #31423c;
+  background: rgb(248 246 238 / 76%);
+  font-size: 0.86rem;
+  font-weight: 700;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.graph-popover__actions {
   display: grid;
   gap: 6px;
 }
 
-.node-detail__title {
-  margin: 0;
-  color: var(--color-ink);
-  font-family: var(--font-display);
-  font-size: 1.2rem;
-  font-weight: 900;
-  line-height: 1.3;
-}
-
-.node-detail__meta {
-  margin: 0;
-  color: var(--color-muted);
-  font-size: 0.84rem;
-  font-weight: 700;
-}
-
-.node-detail__actions {
+.graph-popover__action {
   display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid rgb(16 59 49 / 12%);
+  border-radius: 7px;
+  color: var(--color-ink);
+  background: rgb(255 255 255 / 72%);
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 900;
+  cursor: pointer;
 }
 
-.node-detail__close {
-  border-color: var(--color-line-strong);
-  color: var(--color-ink);
-  background: rgb(255 255 255 / 65%);
+.graph-popover__action:hover {
+  border-color: rgb(20 115 90 / 22%);
+  background: rgb(232 241 237 / 72%);
+}
+
+.graph-popover__action--primary {
+  color: #fff;
+  border-color: #14735a;
+  background: #14735a;
+}
+
+.graph-popover__action--primary:hover {
+  background: #103b31;
+}
+
+.graph-popover-enter-active,
+.graph-popover-leave-active {
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+
+.graph-popover-enter-from,
+.graph-popover-leave-to {
+  opacity: 0;
+  transform: translateY(4px);
 }
 
 /* Responsive */

@@ -6,10 +6,9 @@ import { listMyWorlds } from '@/api/world'
 import type { WorldListItem } from '@/types/world'
 
 interface ProfileTab {
-  key: string
+  key: 'created' | 'contributed'
   label: string
   count: number
-  enabled: boolean
 }
 
 const router = useRouter()
@@ -20,7 +19,7 @@ const currentUser = computed(() => authStore.currentUser)
 const allWorlds = ref<WorldListItem[]>([])
 const worldsLoading = ref(false)
 const worldsError = ref('')
-const activeTabKey = ref('created')
+const activeTabKey = ref<ProfileTab['key']>('created')
 const avatarImageFailed = ref(false)
 
 const displayName = computed(() => {
@@ -58,41 +57,18 @@ const tabs = computed<ProfileTab[]>(() => [
   {
     key: 'created',
     label: '创建的世界',
-    count: createdWorlds.value.length,
-    enabled: true
+    count: createdWorlds.value.length
   },
   {
     key: 'contributed',
     label: '有贡献的世界',
-    count: contributedWorlds.value.length,
-    enabled: true
-  },
-  {
-    key: 'interacted',
-    label: '互动的世界',
-    count: 0,
-    enabled: false
-  },
-  {
-    key: 'following',
-    label: '关注的世界',
-    count: 0,
-    enabled: false
-  },
-  {
-    key: 'oc',
-    label: 'OC',
-    count: 0,
-    enabled: false
+    count: contributedWorlds.value.length
   }
 ])
 
-const activeTab = computed(() => tabs.value.find((t) => t.key === activeTabKey.value))
-
 const currentWorlds = computed(() => {
   if (activeTabKey.value === 'created') return createdWorlds.value
-  if (activeTabKey.value === 'contributed') return contributedWorlds.value
-  return []
+  return contributedWorlds.value
 })
 
 const initialLetter = computed(() => displayName.value.charAt(0))
@@ -108,13 +84,6 @@ async function loadWorlds() {
     worldsError.value = err?.message || '加载失败，请稍后重试'
   } finally {
     worldsLoading.value = false
-  }
-}
-
-function switchTab(key: string) {
-  const tab = tabs.value.find((t) => t.key === key)
-  if (tab?.enabled) {
-    activeTabKey.value = key
   }
 }
 
@@ -175,21 +144,6 @@ onMounted(() => {
           <p class="profile-username">@{{ currentUser.username }}</p>
           <p v-if="currentUser.bio" class="profile-bio">{{ currentUser.bio }}</p>
           <p v-if="formattedJoinDate" class="profile-join-date">于 {{ formattedJoinDate }}</p>
-
-          <dl class="profile-stats">
-            <div class="profile-stat">
-              <dt>创建世界</dt>
-              <dd>{{ currentUser.stats.worldsCreated }}</dd>
-            </div>
-            <div class="profile-stat">
-              <dt>贡献</dt>
-              <dd>{{ currentUser.stats.contributions }}</dd>
-            </div>
-            <div class="profile-stat">
-              <dt>关注者</dt>
-              <dd>{{ currentUser.stats.followers }}</dd>
-            </div>
-          </dl>
         </div>
       </section>
 
@@ -199,19 +153,16 @@ onMounted(() => {
           v-for="tab in tabs"
           :key="tab.key"
           class="profile-tab"
-          :class="{
-            'profile-tab--active': activeTabKey === tab.key,
-            'profile-tab--disabled': !tab.enabled
-          }"
-          :disabled="!tab.enabled"
-          @click="switchTab(tab.key)"
+          :class="{ 'profile-tab--active': activeTabKey === tab.key }"
+          type="button"
+          @click="activeTabKey = tab.key"
         >
           {{ tab.label }}
-          <span v-if="tab.enabled" class="tab-count">{{ tab.count }}</span>
+          <span class="tab-count">{{ tab.count }}</span>
         </button>
       </nav>
 
-      <!-- ③ 栏目内容区 -->
+      <!-- ③ 内容区 -->
       <section class="profile-content page-container">
         <!-- 加载中 -->
         <div v-if="worldsLoading" class="content-state">
@@ -222,20 +173,6 @@ onMounted(() => {
         <div v-else-if="worldsError" class="content-state">
           <p>{{ worldsError }}</p>
           <button class="retry-btn" type="button" @click="loadWorlds">重试</button>
-        </div>
-
-        <!-- 未实现栏目 -->
-        <div v-else-if="activeTab && !activeTab.enabled" class="content-state content-placeholder">
-          <p class="eyebrow">Coming Soon</p>
-          <h3>功能开发中</h3>
-          <p>该功能正在开发中，敬请期待</p>
-          <button
-            class="retry-btn"
-            type="button"
-            @click="activeTabKey = tabs.find(t => t.enabled)?.key || 'created'"
-          >
-            返回可用的栏目
-          </button>
         </div>
 
         <!-- 空状态 -->
@@ -416,30 +353,6 @@ onMounted(() => {
   font-size: 0.84rem;
 }
 
-.profile-stats {
-  display: flex;
-  gap: 28px;
-  margin: 18px 0 0;
-  padding: 0;
-}
-
-.profile-stat {
-  display: grid;
-  gap: 2px;
-}
-
-.profile-stat dt {
-  color: var(--color-muted);
-  font-size: 0.78rem;
-}
-
-.profile-stat dd {
-  margin: 0;
-  color: var(--color-ink);
-  font-size: 1.12rem;
-  font-weight: 900;
-}
-
 /* --- 标签页导航 --- */
 .profile-tabs {
   display: flex;
@@ -473,18 +386,13 @@ onMounted(() => {
   margin-bottom: -1px;
 }
 
-.profile-tab:hover:not(.profile-tab--disabled) {
+.profile-tab:hover {
   color: var(--color-ink);
 }
 
 .profile-tab--active {
   color: var(--color-accent);
   border-bottom-color: var(--color-accent);
-}
-
-.profile-tab--disabled {
-  color: #b0bab6;
-  cursor: default;
 }
 
 .tab-count {
@@ -512,10 +420,6 @@ onMounted(() => {
   gap: 10px;
   padding-block: 64px 48px;
   text-align: center;
-}
-
-.content-placeholder {
-  gap: 6px;
 }
 
 .content-state h3 {
@@ -649,10 +553,6 @@ onMounted(() => {
     margin-right: auto;
   }
 
-  .profile-stats {
-    justify-content: center;
-  }
-
   .world-grid {
     grid-template-columns: 1fr;
   }
@@ -666,10 +566,6 @@ onMounted(() => {
 
   .profile-avatar-initial {
     font-size: 1.4rem;
-  }
-
-  .profile-stats {
-    gap: 18px;
   }
 
   .profile-tab {

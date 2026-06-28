@@ -30,6 +30,7 @@ export interface PushGraphNode {
   pushId: string
   lineId: string
   title: string
+  content?: string
   lineType: 'main' | 'fork' | 'merge'
   lineName: string
   authorId: string

@@ -588,7 +588,22 @@ watch(
               <div class="detail-hero__button-row">
                 <div ref="manageDropdownRef" class="manage-dropdown">
                   <button type="button" class="action-link" @click.stop="toggleManageDropdown">
-                    管理世界 ▾
+                    <span class="action-link__icon" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" focusable="false">
+                        <path d="M11 4a7 7 0 0 0-6.6 9.3" />
+                        <path d="M11 4c-1.8 1.9-2.7 4.1-2.7 6.7 0 1 .1 1.9.4 2.8" />
+                        <path d="M4.8 8h10.8" />
+                        <path d="M5.2 13h7.1" />
+                        <path d="M14.2 19.1l4.9-4.9 1.7 1.7-4.9 4.9-2.3.6.6-2.3z" />
+                        <path d="M17.8 15.5l1.7 1.7" />
+                      </svg>
+                    </span>
+                    <span>管理世界</span>
+                    <span class="action-link__chevron" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" focusable="false">
+                        <path d="M7 10l5 5 5-5" />
+                      </svg>
+                    </span>
                   </button>
                   <div v-if="showManageDropdown" class="manage-dropdown__menu">
                     <RouterLink
@@ -629,20 +644,46 @@ watch(
                   class="action-link"
                   :to="{ name: 'world-studio', params: { worldId: world.worldId }, query: { view: 'entries' } }"
                 >
-                  进入创作
+                  <span class="action-link__icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" focusable="false">
+                      <path d="M5 19l4.4-1.1L19 8.3 15.7 5 6.1 14.6 5 19z" />
+                      <path d="M14.6 6.1l3.3 3.3" />
+                      <path d="M4 21h16" />
+                    </svg>
+                  </span>
+                  <span>进入创作</span>
                 </RouterLink>
                 <RouterLink
                   class="action-link"
                   :to="{ name: 'rpg-chat', params: { worldId: world.worldId } }"
                 >
-                  角色扮演
+                  <span class="action-link__icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" focusable="false">
+                      <path d="M4.5 8.5c2.3-1.2 5-1.2 7.3 0v5.2c0 2.1-1.5 3.9-3.6 4.6-2.1-.7-3.7-2.5-3.7-4.6V8.5z" />
+                      <path d="M12.2 8.5c2.3-1.2 5-1.2 7.3 0v5.2c0 2.1-1.5 3.9-3.6 4.6-1.1-.4-2.1-1.1-2.8-2" />
+                      <path d="M6.8 11h.01" />
+                      <path d="M9.4 11h.01" />
+                      <path d="M6.8 14.2c.8.6 2 .6 2.8 0" />
+                      <path d="M14.5 11h.01" />
+                      <path d="M17.1 11h.01" />
+                      <path d="M14.5 14.8c.8-.6 2-.6 2.8 0" />
+                    </svg>
+                  </span>
+                  <span>角色扮演</span>
                 </RouterLink>
                 <RouterLink
                   v-if="canReviewWorld"
                   class="action-link"
                   :to="{ name: 'review-submissions', params: { worldId: world.worldId } }"
                 >
-                  审核提交
+                  <span class="action-link__icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" focusable="false">
+                      <path d="M7 4h10l2 2v14H5V6l2-2z" />
+                      <path d="M8 11l2.5 2.5L16 8" />
+                      <path d="M8 17h8" />
+                    </svg>
+                  </span>
+                  <span>审核提交</span>
                 </RouterLink>
               </div>
               <span v-if="world.viewer.role" class="role-badge">你的权限：{{ formatRole(world.viewer.role) }}</span>
@@ -1441,8 +1482,9 @@ watch(
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 9px;
   min-height: 42px;
-  padding: 0 14px;
+  padding: 0 13px 0 11px;
   border: 1px solid var(--color-line-strong);
   border-radius: 8px;
   color: var(--color-ink);
@@ -1451,6 +1493,13 @@ watch(
   font-weight: 900;
   text-decoration: none;
   cursor: pointer;
+  white-space: nowrap;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
 }
 
 .action-link--primary {
@@ -1459,9 +1508,61 @@ watch(
   background: #103b31;
 }
 
+.action-link:hover {
+  border-color: rgb(20 115 90 / 32%);
+  background: rgb(255 255 255 / 86%);
+  box-shadow: 0 10px 22px rgb(16 59 49 / 9%);
+  transform: translateY(-1px);
+}
+
 .action-link:disabled {
   cursor: not-allowed;
   opacity: 0.58;
+}
+
+.action-link__icon,
+.action-link__chevron {
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  color: #14735a;
+}
+
+.action-link__icon {
+  width: 22px;
+  height: 22px;
+}
+
+.action-link__chevron {
+  width: 15px;
+  height: 15px;
+  margin-left: -2px;
+  color: currentColor;
+  opacity: 0.82;
+}
+
+.action-link__icon svg,
+.action-link__chevron svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.action-link__icon svg path,
+.action-link__chevron svg path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.action-link:hover .action-link__icon {
+  color: #103b31;
+}
+
+.action-link--primary .action-link__icon {
+  color: rgb(255 255 255 / 86%);
 }
 
 /* ---------- Hero actions strip ---------- */

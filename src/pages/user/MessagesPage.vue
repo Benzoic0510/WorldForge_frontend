@@ -624,18 +624,19 @@ onBeforeUnmount(() => {
       </section>
     </section>
 
-    <div
-      v-if="selectedNotification"
-      class="notification-modal-backdrop"
-      role="presentation"
-      @click.self="closeNotificationDetail"
-    >
-      <section
-        class="notification-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="notification-modal-title"
+    <Transition name="notification-modal">
+      <div
+        v-if="selectedNotification"
+        class="notification-modal-backdrop"
+        role="presentation"
+        @click.self="closeNotificationDetail"
       >
+        <section
+          class="notification-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="notification-modal-title"
+        >
         <header class="notification-modal__header">
           <div class="notification-modal__heading">
             <span class="notification-modal__eyebrow">系统通知</span>
@@ -820,8 +821,9 @@ onBeforeUnmount(() => {
             </button>
           </div>
         </div>
-      </section>
-    </div>
+        </section>
+      </div>
+    </Transition>
   </main>
 </template>
 
@@ -1127,6 +1129,44 @@ onBeforeUnmount(() => {
   border-radius: 10px;
   background: #fffdfa;
   box-shadow: 0 26px 80px rgb(16 24 22 / 22%);
+}
+
+.notification-modal-enter-active,
+.notification-modal-leave-active {
+  transition: opacity 180ms ease;
+}
+
+.notification-modal-enter-active .notification-modal {
+  transition:
+    opacity 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.notification-modal-leave-active .notification-modal {
+  transition:
+    opacity 150ms ease,
+    transform 150ms ease;
+}
+
+.notification-modal-enter-from,
+.notification-modal-leave-to {
+  opacity: 0;
+}
+
+.notification-modal-enter-from .notification-modal {
+  opacity: 0;
+  transform: translateY(14px) scale(0.96);
+}
+
+.notification-modal-enter-to .notification-modal,
+.notification-modal-leave-from .notification-modal {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.notification-modal-leave-to .notification-modal {
+  opacity: 0;
+  transform: translateY(8px) scale(0.98);
 }
 
 .notification-modal__header {
