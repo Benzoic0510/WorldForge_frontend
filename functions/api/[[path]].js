@@ -7,10 +7,7 @@ export async function onRequest({ request, env, params }) {
   const targetUrl = new URL(`${targetOrigin}/api/${path}`)
   targetUrl.search = sourceUrl.search
 
-  const headers = new Headers(request.headers)
-  headers.delete('host')
-  headers.delete('connection')
-  headers.delete('content-length')
+  const headers = buildProxyHeaders(request.headers)
   headers.set('x-forwarded-host', sourceUrl.host)
   headers.set('x-forwarded-proto', sourceUrl.protocol.replace(':', ''))
 
@@ -25,4 +22,27 @@ export async function onRequest({ request, env, params }) {
   }
 
   return fetch(targetUrl, init)
+}
+
+function buildProxyHeaders(sourceHeaders) {
+  const headers = new Headers()
+  const allowedHeaders = [
+    'accept',
+    'accept-language',
+    'authorization',
+    'content-type',
+    'cookie',
+    'origin',
+    'referer',
+    'user-agent'
+  ]
+
+  for (const name of allowedHeaders) {
+    const value = sourceHeaders.get(name)
+    if (value) {
+      headers.set(name, value)
+    }
+  }
+
+  return headers
 }
