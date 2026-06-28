@@ -18,6 +18,10 @@ const world = ref<WorldDetail | null>(null)
 const worldId = computed(() => String(route.params.worldId || ''))
 const entryId = computed(() => String(route.params.entryId || ''))
 const canEditEntry = computed(() => world.value?.viewer.canEdit === true)
+const latestRevisionAuthor = computed(() => {
+  const currentRevision = entry.value?.revisions.find(revision => revision.current)
+  return currentRevision?.author.nickname || entry.value?.author.nickname || '未知作者'
+})
 
 // ── navigation stack ──
 const navigationStack = ref<string[]>([])
@@ -228,8 +232,8 @@ watch(
                 <dd>{{ formatDate(entry.updatedAt) }}</dd>
               </div>
               <div>
-                <dt>当前版本</dt>
-                <dd>{{ entry.currentRevisionId }}</dd>
+                <dt>最新作者</dt>
+                <dd>{{ latestRevisionAuthor }}</dd>
               </div>
             </dl>
           </section>
@@ -441,7 +445,7 @@ watch(
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
   gap: 20px;
-  align-items: start;
+  align-items: stretch;
 }
 
 .entry-content {
@@ -495,6 +499,7 @@ watch(
 .entry-side {
   display: grid;
   gap: 16px;
+  align-self: stretch;
 }
 
 .side-panel,
@@ -502,26 +507,30 @@ watch(
   padding: 24px;
 }
 
+.side-panel {
+  display: grid;
+  align-content: start;
+}
+
 .meta-list {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  grid-template-rows: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  height: 100%;
   margin: 0;
 }
 
 .meta-list div {
   display: grid;
   gap: 6px;
-  min-height: 84px;
-  align-content: start;
-  padding: 12px;
+  min-height: 112px;
+  align-content: center;
+  padding: 14px 16px;
   border: 1px solid rgb(16 59 49 / 10%);
   border-radius: 8px;
-  background: rgb(255 255 255 / 46%);
-}
-
-.meta-list div:last-child {
-  grid-column: 1 / -1;
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 54%), rgb(244 240 231 / 42%)),
+    rgb(255 255 255 / 46%);
 }
 
 .meta-list dt {
@@ -535,7 +544,7 @@ watch(
   min-width: 0;
   margin: 0;
   color: var(--color-ink);
-  font-size: 0.9rem;
+  font-size: 1rem;
   font-weight: 800;
   line-height: 1.45;
   overflow-wrap: anywhere;

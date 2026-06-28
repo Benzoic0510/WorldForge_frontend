@@ -797,18 +797,18 @@ watch(
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 18px;
+  align-items: stretch;
 }
 
 .work-world-card {
   --work-world-cover-height: 258px;
-  --work-world-reveal-offset: calc((var(--work-world-cover-height) + 18px) * -1);
   position: relative;
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
-  gap: 8px;
-  height: 412px;
-  padding: 14px;
+  gap: 16px;
+  height: 642px;
   overflow: hidden;
+  padding: 14px;
   border: 1px solid #dde5df;
   border-radius: 8px;
   color: inherit;
@@ -831,13 +831,7 @@ watch(
   gap: 12px;
   min-width: 0;
   min-height: 0;
-  overflow: visible;
-  transition: transform 230ms ease;
-  will-change: transform;
-}
-
-.work-world-card:hover .work-world-reveal {
-  transform: translateY(var(--work-world-reveal-offset));
+  overflow: hidden;
 }
 
 .work-world-cover {
@@ -867,11 +861,10 @@ watch(
   position: relative;
   z-index: 2;
   display: grid;
-  gap: 0;
+  gap: 12px;
   min-width: 0;
-  min-height: 28px;
+  min-height: 0;
   align-content: start;
-  overflow: visible;
 }
 
 .work-world-title-line {
@@ -910,51 +903,20 @@ watch(
 }
 
 .work-world-main p {
-  position: absolute;
-  top: 34px;
-  left: 0;
-  right: 0;
   display: -webkit-box;
-  height: 84px;
-  margin: 0;
   overflow: hidden;
+  margin: 0;
   color: var(--color-muted);
   font-size: 0.9rem;
-  line-height: 1.5;
-  opacity: 0;
-  transform: translateY(28px);
-  transition:
-    opacity 180ms ease 60ms,
-    transform 210ms ease 40ms;
+  line-height: 1.65;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 5;
-}
-
-.work-world-card:hover .work-world-main p {
-  opacity: 1;
-  transform: translateY(0);
+  -webkit-line-clamp: 10;
 }
 
 .tag-list {
-  position: absolute;
-  top: 128px;
-  left: 0;
-  right: 0;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  height: 56px;
-  overflow: hidden;
-  opacity: 0;
-  transform: translateY(34px);
-  transition:
-    opacity 180ms ease 80ms,
-    transform 210ms ease 60ms;
-}
-
-.work-world-card:hover .tag-list {
-  opacity: 1;
-  transform: translateY(0);
 }
 
 .tag-list span {
@@ -978,6 +940,7 @@ watch(
   gap: 8px 12px;
   align-items: end;
   align-self: end;
+  padding-top: 2px;
 }
 
 .creator-line {
@@ -1187,15 +1150,10 @@ watch(
 
   .work-world-card {
     --work-world-cover-height: 228px;
-    height: 378px;
   }
 
   .work-world-grid {
     grid-template-columns: 1fr;
-  }
-
-  .work-world-card:hover .work-world-reveal {
-    transform: translateY(var(--work-world-reveal-offset));
   }
 
   .desk-action {

@@ -778,7 +778,13 @@ onUnmounted(() => {
               <span class="modal-label">选择父线（至少 2 条）</span>
               <ul class="merge-checkbox-list">
                 <li v-for="line in mergeCandidateLines" :key="line.lineId">
-                  <label class="merge-checkbox-item">
+                  <label
+                    class="merge-checkbox-item"
+                    :class="{
+                      'merge-checkbox-item--selected': mergeSelectedLineIds.includes(line.lineId),
+                      'merge-checkbox-item--disabled': !lineHasOwnPush(line.lineId) || isMergedParentLine(line.lineId),
+                    }"
+                  >
                     <input
                       type="checkbox"
                       :value="line.lineId"
@@ -786,9 +792,12 @@ onUnmounted(() => {
                       :disabled="!lineHasOwnPush(line.lineId)"
                       @change="toggleMergeSelection(line.lineId)"
                     />
-                    <span>{{ line.name }}</span>
-                    <span :class="['node-badge', formatNodeTypeClass(line.type)]">
-                      {{ formatNodeType(line.type) }}
+                    <span class="merge-checkbox-mark" aria-hidden="true"></span>
+                    <span class="merge-line-main">
+                      <span class="merge-line-title">{{ line.name }}</span>
+                      <span :class="['node-badge', formatNodeTypeClass(line.type)]">
+                        {{ formatNodeType(line.type) }}
+                      </span>
                     </span>
                     <small v-if="!lineHasOwnPush(line.lineId)" class="merge-line-note">暂无 Push，不能合并</small>
                     <small v-if="isMergedParentLine(line.lineId)" class="merge-line-note">已合并，停止接收 Push</small>
@@ -1226,21 +1235,110 @@ onUnmounted(() => {
   padding: 0;
   margin: 0;
   display: grid;
-  gap: 6px;
+  gap: 10px;
 }
 
 .merge-checkbox-item {
+  position: relative;
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 12px 14px;
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  background: rgb(255 255 255 / 78%);
+  cursor: pointer;
+  transition:
+    border-color 0.18s ease,
+    background 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.merge-checkbox-item:hover {
+  border-color: rgb(20 115 90 / 34%);
+  background: rgb(246 251 248 / 92%);
+  box-shadow: 0 8px 20px rgb(17 54 45 / 8%);
+}
+
+.merge-checkbox-item--selected {
+  border-color: rgb(20 115 90 / 46%);
+  background: rgb(20 115 90 / 7%);
+}
+
+.merge-checkbox-item input[type="checkbox"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.merge-checkbox-mark {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border: 2px solid rgb(20 115 90 / 34%);
+  border-radius: 5px;
+  background: #fff;
+  transition:
+    border-color 0.18s ease,
+    background 0.18s ease;
+}
+
+.merge-checkbox-item--selected .merge-checkbox-mark {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+}
+
+.merge-checkbox-item--selected .merge-checkbox-mark::after {
+  width: 9px;
+  height: 5px;
+  border-bottom: 2px solid #fff;
+  border-left: 2px solid #fff;
+  content: '';
+  transform: rotate(-45deg) translate(1px, -1px);
+}
+
+.merge-checkbox-item--disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.merge-checkbox-item--disabled:hover {
+  border-color: var(--color-line);
+  background: rgb(255 255 255 / 78%);
+  box-shadow: none;
+}
+
+.merge-line-main {
   display: flex;
+  min-width: 0;
   align-items: center;
   gap: 8px;
-  cursor: pointer;
+}
+
+.merge-line-title {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 850;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.merge-line-main .node-badge {
+  flex-shrink: 0;
 }
 
 .merge-line-note {
-  margin-left: auto;
+  justify-self: end;
   color: #8f2d2d;
   font-size: 0.76rem;
   font-weight: 800;
+  white-space: nowrap;
 }
 
 .merge-hint {
