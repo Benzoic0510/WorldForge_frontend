@@ -1,7 +1,7 @@
-const DEFAULT_API_PROXY_TARGET = 'http://38.22.95.108:8080'
+const DEFAULT_API_PROXY_TARGET = 'http://38.22.95.108.sslip.io:8080'
 
 export async function onRequest({ request, env, params }) {
-  const targetOrigin = (env.API_PROXY_TARGET || DEFAULT_API_PROXY_TARGET).replace(/\/$/, '')
+  const targetOrigin = resolveTargetOrigin(env.API_PROXY_TARGET || DEFAULT_API_PROXY_TARGET)
   const sourceUrl = new URL(request.url)
   const path = Array.isArray(params.path) ? params.path.join('/') : (params.path || '')
   const targetUrl = new URL(`${targetOrigin}/api/${path}`)
@@ -22,6 +22,20 @@ export async function onRequest({ request, env, params }) {
   }
 
   return fetch(targetUrl, init)
+}
+
+function resolveTargetOrigin(value) {
+  const url = new URL(value)
+
+  if (/^\d{1,3}(?:\.\d{1,3}){3}$/.test(url.hostname)) {
+    url.hostname = `${url.hostname}.sslip.io`
+  }
+
+  url.pathname = ''
+  url.search = ''
+  url.hash = ''
+
+  return url.toString().replace(/\/$/, '')
 }
 
 function buildProxyHeaders(sourceHeaders) {
