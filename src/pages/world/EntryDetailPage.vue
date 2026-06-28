@@ -217,7 +217,7 @@ watch(
 
         <aside class="entry-side">
           <section class="side-panel">
-            <p class="eyebrow">Timeline</p>
+            <p class="eyebrow">Entry Info</p>
             <dl class="meta-list">
               <div>
                 <dt>创建时间</dt>
@@ -232,20 +232,6 @@ watch(
                 <dd>{{ entry.currentRevisionId }}</dd>
               </div>
             </dl>
-          </section>
-
-          <section class="side-panel">
-            <p class="eyebrow">Linked Entries</p>
-            <div v-if="entry.linkedEntries.length > 0" class="linked-list">
-              <a
-                v-for="linkedEntry in entry.linkedEntries"
-                :key="linkedEntry.entryId"
-                class="linked-entry"
-                href="#"
-                @click.prevent="navigateToEntry(linkedEntry.entryId)"
-              >{{ linkedEntry.title }}</a>
-            </div>
-            <p v-else class="muted-copy">暂无关联词条。</p>
           </section>
         </aside>
       </section>
@@ -283,7 +269,7 @@ watch(
 
 .entry-shell {
   display: grid;
-  gap: 18px;
+  gap: 20px;
 }
 
 .entry-breadcrumb {
@@ -388,14 +374,14 @@ watch(
 .entry-header {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 18px;
-  align-items: end;
-  padding: 28px;
+  gap: 24px;
+  align-items: start;
+  padding: 30px 32px;
 }
 
 .entry-header__actions {
   display: grid;
-  gap: 12px;
+  gap: 10px;
   justify-items: end;
 }
 
@@ -421,12 +407,14 @@ watch(
 }
 
 .entry-header h1 {
-  font-size: clamp(2.35rem, 4vw, 4.6rem);
-  line-height: 1.02;
+  max-width: 920px;
+  font-size: clamp(2rem, 3vw, 3.35rem);
+  line-height: 1.08;
 }
 
 .entry-meta {
-  margin-top: 14px;
+  margin-top: 12px;
+  font-size: 0.94rem;
 }
 
 .tag-list {
@@ -451,20 +439,21 @@ watch(
 
 .entry-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.38fr);
-  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+  gap: 20px;
   align-items: start;
 }
 
 .entry-content {
-  min-height: 420px;
-  padding: 30px;
+  min-height: 460px;
+  padding: 34px 38px;
 }
 
 .entry-content-text {
+  max-width: 78ch;
   color: var(--color-ink);
-  font-size: 1.04rem;
-  line-height: 2;
+  font-size: 1rem;
+  line-height: 1.9;
   white-space: pre-wrap;
 }
 
@@ -494,9 +483,9 @@ watch(
 
 .content-link {
   color: #14735a;
-  font-weight: 700;
-  text-decoration: underline;
-  text-underline-offset: 2px;
+  font-weight: 800;
+  text-decoration: none;
+  border-bottom: 1px solid rgb(20 115 90 / 36%);
 }
 
 .content-link:hover {
@@ -505,28 +494,39 @@ watch(
 
 .entry-side {
   display: grid;
-  gap: 18px;
+  gap: 16px;
 }
 
 .side-panel,
 .revision-panel {
-  padding: 22px;
+  padding: 24px;
 }
 
 .meta-list {
   display: grid;
-  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
   margin: 0;
 }
 
 .meta-list div {
   display: grid;
   gap: 6px;
+  min-height: 84px;
+  align-content: start;
+  padding: 12px;
+  border: 1px solid rgb(16 59 49 / 10%);
+  border-radius: 8px;
+  background: rgb(255 255 255 / 46%);
+}
+
+.meta-list div:last-child {
+  grid-column: 1 / -1;
 }
 
 .meta-list dt {
   color: var(--color-muted);
-  font-size: 0.82rem;
+  font-size: 0.76rem;
   font-weight: 800;
   text-transform: uppercase;
 }
@@ -535,44 +535,23 @@ watch(
   min-width: 0;
   margin: 0;
   color: var(--color-ink);
+  font-size: 0.9rem;
   font-weight: 800;
+  line-height: 1.45;
   overflow-wrap: anywhere;
-}
-
-.linked-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.linked-entry {
-  display: inline-flex;
-  align-items: center;
-  min-height: 28px;
-  padding: 0 10px;
-  border: 1px solid var(--color-line);
-  border-radius: 999px;
-  color: #305349;
-  background: rgb(232 241 237 / 62%);
-  font-size: 0.82rem;
-  font-weight: 700;
-  text-decoration: none;
-}
-
-.linked-entry:hover {
-  border-color: var(--color-accent);
-  background: rgb(232 241 237 / 88%);
 }
 
 .revision-list {
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
 .revision-card {
-  display: grid;
-  gap: 6px;
-  padding: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 14px;
   border: 1px solid var(--color-line);
   border-radius: 8px;
   background: rgb(255 255 255 / 52%);
@@ -586,8 +565,8 @@ watch(
 .revision-card span,
 .revision-card p {
   color: var(--color-muted);
-  font-size: 0.9rem;
-  line-height: 1.55;
+  font-size: 0.84rem;
+  line-height: 1.45;
 }
 
 .panel-heading {

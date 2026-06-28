@@ -480,6 +480,16 @@ function formatLineType(type: string): string {
   return map[type] || type
 }
 
+function formatLineTypeFull(type: string): string {
+  const map: Record<string, string> = { main: '主线', fork: '分支线', merge: '合并线' }
+  return map[type] || type
+}
+
+function getStoryLineConnectionCount(lineId: string): number {
+  const edges = storyGraphData.value?.edges || []
+  return edges.filter(edge => edge.parentLineId === lineId || edge.childLineId === lineId).length
+}
+
 onMounted(async () => {
   await loadWorld()
 })
@@ -626,7 +636,7 @@ watch(
                   class="action-link"
                   :to="{ name: 'review-submissions', params: { worldId: world.worldId } }"
                 >
-                  审核
+                  审核提交
                 </RouterLink>
               </div>
               <span v-if="world.viewer.role" class="role-badge">你的权限：{{ formatRole(world.viewer.role) }}</span>
@@ -840,40 +850,65 @@ watch(
 
         <!-- 有数据 -->
         <template v-else-if="storyGraphData && storyLineCounts">
-          <p class="storylines-intro">
-            这个世界共有 <strong>{{ storyLineCounts.total }}</strong> 条故事线：
-            主 {{ storyLineCounts.main }} · 分叉 {{ storyLineCounts.fork }} · 合并 {{ storyLineCounts.merge }}
-          </p>
+          <div class="storylines-dashboard">
+            <section class="storylines-summary-card">
+              <div>
+                <span class="storylines-summary-card__label">当前结构</span>
+                <strong>{{ storyLineCounts.total }}</strong>
+                <p>条故事线正在承载这个世界的剧情推进</p>
+              </div>
 
-          <div class="storyline-mini-list">
-            <RouterLink
-              v-for="node in storyGraphData.nodes"
-              :key="node.nodeId"
-              class="storyline-mini-chip"
-              :class="`storyline-mini-chip--${node.type}`"
-              :to="{ name: 'line-content', params: { worldId, lineId: node.lineId } }"
-            >
-              <span class="storyline-mini-chip__type">{{ formatLineType(node.type) }}</span>
-              {{ node.name }}
-            </RouterLink>
-          </div>
+              <div class="storylines-count-grid" aria-label="故事线统计">
+                <div>
+                  <span>主线</span>
+                  <strong>{{ storyLineCounts.main }}</strong>
+                </div>
+                <div>
+                  <span>分支</span>
+                  <strong>{{ storyLineCounts.fork }}</strong>
+                </div>
+                <div>
+                  <span>合并</span>
+                  <strong>{{ storyLineCounts.merge }}</strong>
+                </div>
+              </div>
 
-          <div class="storylines-actions">
-            <RouterLink
-              class="panel-action"
-              :to="{ name: 'world-studio', params: { worldId }, query: { view: 'graph' } }"
-            >
-              查看完整世界线树图
-            </RouterLink>
+              <RouterLink
+                class="panel-action storylines-graph-link"
+                :to="{ name: 'world-studio', params: { worldId }, query: { view: 'graph' } }"
+              >
+                查看完整世界线树图
+              </RouterLink>
+            </section>
+
+            <div class="storyline-card-grid">
+              <RouterLink
+                v-for="node in storyGraphData.nodes"
+                :key="node.nodeId"
+                class="storyline-card"
+                :class="`storyline-card--${node.type}`"
+                :to="{ name: 'line-content', params: { worldId, lineId: node.lineId } }"
+              >
+                <div class="storyline-card__top">
+                  <span class="storyline-card__type">{{ formatLineType(node.type) }}</span>
+                  <span>{{ formatLineTypeFull(node.type) }}</span>
+                </div>
+                <h3>{{ node.name }}</h3>
+                <p>{{ node.description || '这条故事线还没有填写说明。' }}</p>
+                <div class="storyline-card__meta">
+                  <span>{{ formatDate(node.createdAt) }}</span>
+                  <span>{{ getStoryLineConnectionCount(node.lineId) }} 个连接</span>
+                </div>
+              </RouterLink>
+            </div>
           </div>
         </template>
 
         <!-- 无数据或加载失败 -->
         <template v-else>
-          <p class="storylines-intro">
-            世界线树图展示这个世界中所有剧情分支与合并收束的关系。
-          </p>
-          <div class="storylines-actions">
+          <div class="storylines-empty-card">
+            <h3>还没有可展示的故事线结构</h3>
+            <p>世界线树图会展示剧情分支、主线推进和合并收束的关系。</p>
             <RouterLink
               class="panel-action"
               :to="{ name: 'world-studio', params: { worldId }, query: { view: 'graph' } }"
@@ -2220,63 +2255,174 @@ watch(
   font-weight: 900;
 }
 
-.storyline-mini-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 20px;
+.storylines-dashboard {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.34fr) minmax(0, 1fr);
+  gap: 18px;
+  align-items: stretch;
 }
 
-.storyline-mini-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 34px;
-  padding: 0 14px 0 4px;
-  border: 1px solid var(--color-line);
+.storylines-summary-card,
+.storyline-card,
+.storylines-empty-card {
+  border: 1px solid rgb(16 59 49 / 12%);
   border-radius: 8px;
+  background: rgb(255 255 255 / 50%);
+}
+
+.storylines-summary-card {
+  display: grid;
+  gap: 18px;
+  align-content: space-between;
+  padding: 22px;
+}
+
+.storylines-summary-card__label {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--color-accent);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.storylines-summary-card strong {
+  display: block;
   color: var(--color-ink);
-  background: rgb(255 255 255 / 62%);
-  font-size: 0.9rem;
-  font-weight: 700;
+  font-family: var(--font-display);
+  font-size: 3.2rem;
+  line-height: 1;
+}
+
+.storylines-summary-card p {
+  margin: 8px 0 0;
+  color: var(--color-muted);
+  line-height: 1.65;
+}
+
+.storylines-count-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.storylines-count-grid div {
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid rgb(16 59 49 / 10%);
+  border-radius: 8px;
+  background: rgb(232 241 237 / 44%);
+}
+
+.storylines-count-grid span {
+  color: var(--color-muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.storylines-count-grid strong {
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  font-size: 1.55rem;
+  line-height: 1;
+}
+
+.storylines-graph-link {
+  width: 100%;
+}
+
+.storyline-card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.storyline-card {
+  display: grid;
+  gap: 12px;
+  min-height: 168px;
+  padding: 16px;
+  color: inherit;
   text-decoration: none;
   transition:
+    transform 160ms ease,
     border-color 160ms ease,
     box-shadow 160ms ease;
 }
 
-.storyline-mini-chip:hover {
-  border-color: rgb(20 115 90 / 34%);
-  box-shadow: 0 4px 16px rgb(24 33 31 / 8%);
+.storyline-card:hover {
+  transform: translateY(-2px);
+  border-color: rgb(20 115 90 / 30%);
+  box-shadow: 0 10px 24px rgb(24 33 31 / 8%);
 }
 
-.storyline-mini-chip__type {
+.storyline-card__top,
+.storyline-card__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.storyline-card__top > span:last-child,
+.storyline-card__meta {
+  color: var(--color-muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.storyline-card__type {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 26px;
-  min-height: 26px;
-  border-radius: 6px;
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
   color: #fff;
   background: #103b31;
-  font-size: 0.72rem;
+  font-size: 0.76rem;
   font-weight: 900;
-  text-transform: uppercase;
 }
 
-.storyline-mini-chip--fork .storyline-mini-chip__type {
+.storyline-card--fork .storyline-card__type {
   background: #305349;
-  color: #e8f1ed;
 }
 
-.storyline-mini-chip--merge .storyline-mini-chip__type {
+.storyline-card--merge .storyline-card__type {
   background: #6c5b24;
-  color: #faf5e8;
 }
 
-.storylines-actions {
-  display: flex;
+.storyline-card h3,
+.storylines-empty-card h3 {
+  margin: 0;
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  line-height: 1.2;
+}
+
+.storyline-card p,
+.storylines-empty-card p {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.9rem;
+  line-height: 1.65;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.storyline-card__meta {
+  align-self: end;
+  padding-top: 4px;
+  border-top: 1px solid rgb(16 59 49 / 8%);
+}
+
+.storylines-empty-card {
+  display: grid;
   gap: 12px;
+  padding: 22px;
 }
 
 @media (max-width: 1120px) {
@@ -2291,6 +2437,11 @@ watch(
 
 @media (max-width: 820px) {
   .entry-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .storylines-dashboard,
+  .storyline-card-grid {
     grid-template-columns: 1fr;
   }
 }
