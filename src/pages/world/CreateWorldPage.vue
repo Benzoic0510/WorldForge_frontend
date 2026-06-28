@@ -842,6 +842,8 @@ textarea:focus {
   margin: 0;
   color: var(--color-muted);
   line-height: 1.75;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .preview-tags {

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
-import { createEntry, listEntries } from '@/api/entry'
+import { createEntry, getEntryDetail, listEntries } from '@/api/entry'
 import { ApiError } from '@/api/http'
 import { getWorldDetail } from '@/api/world'
 import { getStoryGraph, getStoryPushDetail, createForkLine, createMergeLine, listApprovedStoryPushes } from '@/api/storyline'
@@ -36,7 +36,9 @@ const canCreateFork = computed(() => isAuthenticated.value && isMember.value)
 const canCreateMerge = computed(() => isMember.value)
 
 // ── Entries ──
-const entries = ref<EntryListItem[]>([])
+type EntryPreviewItem = EntryListItem & { contentPreview?: string }
+
+const entries = ref<EntryPreviewItem[]>([])
 const entriesLoading = ref(false)
 const entriesLoadingMore = ref(false)
 const entriesError = ref('')
@@ -199,6 +201,32 @@ function formatDate(value: string) {
   return new Date(value).toLocaleString('zh-CN')
 }
 
+function buildEntryPreview(content: string): string {
+  const trimmed = content.trim()
+  if (trimmed.length <= 360) return trimmed
+  return `${trimmed.slice(0, 360).trimEnd()}...`
+}
+
+function getEntryPreview(entry: EntryPreviewItem): string {
+  return entry.contentPreview || entry.summary || '暂无摘要。'
+}
+
+async function hydrateEntryPreviews(items: EntryListItem[]): Promise<EntryPreviewItem[]> {
+  return Promise.all(
+    items.map(async (entry) => {
+      try {
+        const detail = await getEntryDetail(entry.worldId, entry.entryId)
+        return {
+          ...entry,
+          contentPreview: buildEntryPreview(detail.content)
+        }
+      } catch {
+        return entry
+      }
+    })
+  )
+}
+
 async function fetchEntries(options: { append?: boolean } = {}) {
   const append = options.append === true
 
@@ -218,7 +246,8 @@ async function fetchEntries(options: { append?: boolean } = {}) {
       pageSize: 12
     })
 
-    entries.value = append ? entries.value.concat(data.items) : data.items
+    const hydratedItems = await hydrateEntryPreviews(data.items)
+    entries.value = append ? entries.value.concat(hydratedItems) : hydratedItems
     entriesTotalPages.value = data.totalPages
     entriesError.value = ''
     entriesAppendError.value = ''
@@ -939,7 +968,7 @@ onUnmounted(() => {
               <strong>打开档案</strong>
             </div>
             <h2>{{ entry.title }}</h2>
-            <p>{{ entry.summary || '暂无摘要。' }}</p>
+            <p>{{ getEntryPreview(entry) }}</p>
             <div class="tag-list" aria-label="标签">
               <span v-for="tag in entry.tags" :key="tag">{{ tag }}</span>
             </div>
@@ -1637,6 +1666,8 @@ onUnmounted(() => {
   margin: 0;
   color: var(--color-muted);
   line-height: 1.75;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .tag-list {
@@ -1700,6 +1731,8 @@ onUnmounted(() => {
   color: var(--color-muted);
   font-size: 0.88rem;
   font-weight: 800;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .graph-layout {

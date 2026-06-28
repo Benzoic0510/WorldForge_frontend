@@ -3,7 +3,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { useClickOutside } from '@/composables/useClickOutside'
 import { listChangeLog } from '@/api/changelog'
-import { listEntries } from '@/api/entry'
+import { getEntryDetail, listEntries } from '@/api/entry'
 import { ApiError } from '@/api/http'
 import { searchUsers } from '@/api/user'
 import { forkWorld, getWorldDetail, joinWorld, applyJoinWorld, createWorldInvitation, listWorldMembers } from '@/api/world'
@@ -16,6 +16,7 @@ import type { UserSummary } from '@/types/user'
 import type { ForkWorldResponse, PageResponse, WorldDetail } from '@/types/world'
 
 type DetailTab = 'overview' | 'entries' | 'storylines' | 'updates'
+type EntryPreviewItem = EntryListItem & { contentPreview?: string }
 
 const route = useRoute()
 const router = useRouter()
@@ -27,7 +28,7 @@ const errorCode = ref('')
 const errorMessage = ref('')
 const activeTab = ref<DetailTab>('overview')
 
-const entries = ref<EntryListItem[]>([])
+const entries = ref<EntryPreviewItem[]>([])
 const entriesLoaded = ref(false)
 const entriesLoading = ref(false)
 const entriesError = ref('')
@@ -365,6 +366,32 @@ function getPanelErrorMessage(error: unknown, fallback: string) {
   return fallback
 }
 
+function buildEntryPreview(content: string): string {
+  const trimmed = content.trim()
+  if (trimmed.length <= 360) return trimmed
+  return `${trimmed.slice(0, 360).trimEnd()}...`
+}
+
+function getEntryPreview(entry: EntryPreviewItem): string {
+  return entry.contentPreview || entry.summary || '暂无摘要。'
+}
+
+async function hydrateEntryPreviews(items: EntryListItem[]): Promise<EntryPreviewItem[]> {
+  return Promise.all(
+    items.map(async (entry) => {
+      try {
+        const detail = await getEntryDetail(entry.worldId, entry.entryId)
+        return {
+          ...entry,
+          contentPreview: buildEntryPreview(detail.content)
+        }
+      } catch {
+        return entry
+      }
+    })
+  )
+}
+
 async function fetchEntries() {
   entriesLoading.value = true
   entriesError.value = ''
@@ -375,7 +402,7 @@ async function fetchEntries() {
       pageSize: 4
     })
 
-    entries.value = data.items
+    entries.value = await hydrateEntryPreviews(data.items)
     entriesLoaded.value = true
     entriesError.value = ''
   } catch (error) {
@@ -878,7 +905,7 @@ watch(
               <strong>查看词条</strong>
             </div>
             <h3>{{ entry.title }}</h3>
-            <p>{{ entry.summary || '暂无摘要。' }}</p>
+            <p>{{ getEntryPreview(entry) }}</p>
             <div class="tag-list tag-list--compact" aria-label="标签">
               <span v-for="tag in entry.tags" :key="tag">{{ tag }}</span>
             </div>
@@ -1295,6 +1322,12 @@ watch(
   line-height: 1.75;
 }
 
+.entry-card p,
+.timeline-item p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .detail-state__actions {
   display: flex;
   flex-wrap: wrap;
@@ -1413,6 +1446,8 @@ watch(
   margin: 18px 0 0;
   color: var(--color-muted);
   line-height: 1.85;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .tag-list {
@@ -2494,6 +2529,8 @@ watch(
   color: var(--color-muted);
   font-size: 0.9rem;
   line-height: 1.65;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }

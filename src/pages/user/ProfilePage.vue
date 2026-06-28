@@ -492,6 +492,8 @@ onMounted(() => {
   font-size: 0.88rem;
   line-height: 1.6;
   display: -webkit-box;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;

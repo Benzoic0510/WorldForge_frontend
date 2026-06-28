@@ -400,6 +400,11 @@ onMounted(async () => {
   line-height: 1.75;
 }
 
+.preview-panel p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .state-actions {
   display: flex;
   flex-wrap: wrap;

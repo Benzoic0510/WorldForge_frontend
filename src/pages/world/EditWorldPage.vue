@@ -630,6 +630,11 @@ onBeforeUnmount(() => {
   line-height: 1.75;
 }
 
+.preview-body p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .state-actions,
 .submit-row {
   display: flex;

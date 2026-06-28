@@ -369,6 +369,11 @@ watch(
   line-height: 1.75;
 }
 
+.entry-card p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .state-actions,
 .load-more-row {
   display: flex;

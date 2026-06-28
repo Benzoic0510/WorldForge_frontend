@@ -941,6 +941,8 @@ h1 {
   transition:
     opacity 180ms ease 60ms,
     transform 210ms ease 40ms;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 10;
 }

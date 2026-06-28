@@ -460,6 +460,11 @@ watch(
   line-height: 1.75;
 }
 
+.work-world-card p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .command-title span {
   font-size: 0.86rem;
   line-height: 1.2;
