@@ -816,11 +816,13 @@ h1 {
 }
 
 .world-card {
+  --world-cover-height: 258px;
+  --world-reveal-offset: calc((var(--world-cover-height) + 12px) * -1);
   position: relative;
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
   gap: 8px;
-  height: 306px;
+  height: 412px;
   padding: 14px;
   border: 1px solid #dde5df;
   border-radius: 8px;
@@ -851,7 +853,7 @@ h1 {
 }
 
 .world-card:hover .world-reveal {
-  transform: translateY(-166px);
+  transform: translateY(var(--world-reveal-offset));
 }
 
 .world-cover {
@@ -859,7 +861,7 @@ h1 {
   z-index: 3;
   display: grid;
   width: 100%;
-  height: 152px;
+  height: var(--world-cover-height);
   place-items: center;
   overflow: hidden;
   border: 1px solid #e2e7e3;
@@ -874,7 +876,7 @@ h1 {
 .world-cover img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
 }
 
 .world-main {
@@ -1169,11 +1171,12 @@ h1 {
   }
 
   .world-card {
-    height: 286px;
+    --world-cover-height: 228px;
+    height: 378px;
   }
 
   .world-card:hover .world-reveal {
-    transform: translateY(-166px);
+    transform: translateY(var(--world-reveal-offset));
   }
 
   .filter-panel {
