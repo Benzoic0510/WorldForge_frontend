@@ -11,7 +11,7 @@ import { getStoryGraph } from '@/api/storyline'
 import { useAuthStore } from '@/stores/auth'
 import type { ChangeLogItem } from '@/types/changelog'
 import type { EntryListItem } from '@/types/entry'
-import type { StoryGraphData } from '@/types/storyline'
+import type { StoryGraphData, StoryGraphNode } from '@/types/storyline'
 import type { UserSummary } from '@/types/user'
 import type { ForkWorldResponse, PageResponse, WorldDetail } from '@/types/world'
 
@@ -59,6 +59,12 @@ const storyLineCounts = computed(() => {
   const merge = nodes.filter(n => n.type === 'merge').length
   return { total: nodes.length, main, fork, merge }
 })
+
+function getStoryLineDescription(node: StoryGraphNode): string {
+  if (node.description) return node.description
+  if (node.type === 'main') return `这是《${world.value?.name || '这个世界'}》的初始故事线。`
+  return '这条故事线还没有填写说明。'
+}
 
 // --- Manage dropdown ---
 const showManageDropdown = ref(false)
@@ -858,19 +864,12 @@ watch(
                 <p>条故事线正在承载这个世界的剧情推进</p>
               </div>
 
-              <div class="storylines-count-grid" aria-label="故事线统计">
-                <div>
-                  <span>主线</span>
-                  <strong>{{ storyLineCounts.main }}</strong>
-                </div>
-                <div>
-                  <span>分支</span>
-                  <strong>{{ storyLineCounts.fork }}</strong>
-                </div>
-                <div>
-                  <span>合并</span>
-                  <strong>{{ storyLineCounts.merge }}</strong>
-                </div>
+              <div class="storylines-count-line" aria-label="故事线统计">
+                <span>主线 {{ storyLineCounts.main }}</span>
+                <span>·</span>
+                <span>分支 {{ storyLineCounts.fork }}</span>
+                <span>·</span>
+                <span>合并 {{ storyLineCounts.merge }}</span>
               </div>
 
               <RouterLink
@@ -894,7 +893,7 @@ watch(
                   <span>{{ formatLineTypeFull(node.type) }}</span>
                 </div>
                 <h3>{{ node.name }}</h3>
-                <p>{{ node.description || '这条故事线还没有填写说明。' }}</p>
+                <p>{{ getStoryLineDescription(node) }}</p>
                 <div class="storyline-card__meta">
                   <span>{{ formatDate(node.createdAt) }}</span>
                   <span>{{ getStoryLineConnectionCount(node.lineId) }} 个连接</span>
@@ -2272,9 +2271,9 @@ watch(
 
 .storylines-summary-card {
   display: grid;
-  gap: 18px;
+  gap: 14px;
   align-content: space-between;
-  padding: 22px;
+  padding: 18px 20px;
 }
 
 .storylines-summary-card__label {
@@ -2299,32 +2298,17 @@ watch(
   line-height: 1.65;
 }
 
-.storylines-count-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.storylines-count-grid div {
-  display: grid;
-  gap: 4px;
-  padding: 10px;
-  border: 1px solid rgb(16 59 49 / 10%);
-  border-radius: 8px;
-  background: rgb(232 241 237 / 44%);
-}
-
-.storylines-count-grid span {
+.storylines-count-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
   color: var(--color-muted);
-  font-size: 0.76rem;
+  font-size: 0.9rem;
   font-weight: 800;
 }
 
-.storylines-count-grid strong {
+.storylines-count-line span:nth-child(odd) {
   color: var(--color-ink);
-  font-family: var(--font-display);
-  font-size: 1.55rem;
-  line-height: 1;
 }
 
 .storylines-graph-link {

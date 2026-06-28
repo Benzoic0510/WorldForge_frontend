@@ -3,7 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { ApiError } from '@/api/http'
-import { listMyWorlds } from '@/api/world'
+import { getWorldDetail, listMyWorlds } from '@/api/world'
 import type { PageResponse, WorldListItem, WorldVisibility } from '@/types/world'
 
 const route = useRoute()
@@ -101,7 +101,9 @@ async function fetchWorlds(options: { append?: boolean } = {}) {
       pageSize: 9
     })
 
-    worlds.value = append ? worlds.value.concat(data.items) : data.items
+    const hydratedItems = await hydrateWorldListItems(data.items)
+
+    worlds.value = append ? worlds.value.concat(hydratedItems) : hydratedItems
     total.value = data.total
     totalPages.value = data.totalPages
     errorMessage.value = ''
@@ -123,6 +125,24 @@ async function fetchWorlds(options: { append?: boolean } = {}) {
     loading.value = false
     loadingMore.value = false
   }
+}
+
+async function hydrateWorldListItems(items: WorldListItem[]) {
+  return Promise.all(
+    items.map(async (item) => {
+      try {
+        const detail = await getWorldDetail(item.worldId)
+        return {
+          ...item,
+          description: detail.description,
+          coverImageUrl: detail.coverImageUrl || item.coverImageUrl,
+          tags: detail.tags.length > 0 ? detail.tags : item.tags
+        }
+      } catch {
+        return item
+      }
+    })
+  )
 }
 
 async function handleSearchSubmit() {
@@ -806,7 +826,7 @@ watch(
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
   gap: 16px;
-  height: 642px;
+  height: 720px;
   overflow: hidden;
   padding: 14px;
   border: 1px solid #dde5df;
@@ -828,6 +848,7 @@ watch(
 
 .work-world-reveal {
   display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 12px;
   min-width: 0;
   min-height: 0;
@@ -865,6 +886,7 @@ watch(
   min-width: 0;
   min-height: 0;
   align-content: start;
+  overflow: hidden;
 }
 
 .work-world-title-line {
@@ -905,6 +927,7 @@ watch(
 .work-world-main p {
   display: -webkit-box;
   overflow: hidden;
+  max-height: calc(0.9rem * 1.65 * 10);
   margin: 0;
   color: var(--color-muted);
   font-size: 0.9rem;
