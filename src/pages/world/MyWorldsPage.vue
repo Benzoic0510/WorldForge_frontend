@@ -822,17 +822,18 @@ watch(
 
 .work-world-card {
   --work-world-cover-height: 258px;
+  --work-world-reveal-offset: calc((var(--work-world-cover-height) + 18px) * -1);
   position: relative;
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
-  gap: 16px;
-  height: 720px;
-  overflow: hidden;
+  gap: 8px;
+  height: 412px;
   padding: 14px;
   border: 1px solid #dde5df;
   border-radius: 8px;
   color: inherit;
   background: #fffdfa;
+  overflow: hidden;
   text-decoration: none;
   transition:
     transform 150ms ease,
@@ -848,11 +849,16 @@ watch(
 
 .work-world-reveal {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
   gap: 12px;
   min-width: 0;
   min-height: 0;
-  overflow: hidden;
+  overflow: visible;
+  transition: transform 230ms ease;
+  will-change: transform;
+}
+
+.work-world-card:hover .work-world-reveal {
+  transform: translateY(var(--work-world-reveal-offset));
 }
 
 .work-world-cover {
@@ -882,23 +888,23 @@ watch(
   position: relative;
   z-index: 2;
   display: grid;
-  gap: 12px;
+  gap: 0;
   min-width: 0;
-  min-height: 0;
+  min-height: 28px;
   align-content: start;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .work-world-title-line {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   min-width: 0;
 }
 
 .work-world-title-line h2 {
   overflow: hidden;
-  font-size: 1.14rem;
+  font-size: 1.2rem;
   line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -915,7 +921,7 @@ watch(
   border-radius: 999px;
   color: #305349;
   background: #f5faf7;
-  font-size: 0.74rem;
+  font-size: 0.76rem;
   font-weight: 800;
 }
 
@@ -925,21 +931,51 @@ watch(
 }
 
 .work-world-main p {
+  position: absolute;
+  top: 34px;
+  left: 0;
+  right: 0;
   display: -webkit-box;
   overflow: hidden;
-  max-height: calc(0.9rem * 1.65 * 10);
-  margin: 0;
+  height: calc(0.9rem * 1.5 * 10);
+  margin-top: 0;
   color: var(--color-muted);
   font-size: 0.9rem;
-  line-height: 1.65;
+  line-height: 1.5;
+  opacity: 0;
+  transform: translateY(28px);
+  transition:
+    opacity 180ms ease 60ms,
+    transform 210ms ease 40ms;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 10;
 }
 
+.work-world-card:hover .work-world-main p {
+  opacity: 1;
+  transform: translateY(0);
+}
+
 .tag-list {
+  position: absolute;
+  top: calc(34px + (0.9rem * 1.5 * 10) + 16px);
+  left: 0;
+  right: 0;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  height: 56px;
+  overflow: hidden;
+  opacity: 0;
+  transform: translateY(34px);
+  transition:
+    opacity 180ms ease 80ms,
+    transform 210ms ease 60ms;
+}
+
+.work-world-card:hover .tag-list {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .tag-list span {
@@ -963,7 +999,6 @@ watch(
   gap: 8px 12px;
   align-items: end;
   align-self: end;
-  padding-top: 2px;
 }
 
 .creator-line {
