@@ -821,13 +821,13 @@ watch(
 }
 
 .work-world-card {
-  --work-world-cover-height: 258px;
+  --work-world-cover-height: 300px;
   --work-world-reveal-offset: calc((var(--work-world-cover-height) + 18px) * -1);
   position: relative;
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
   gap: 8px;
-  height: 412px;
+  height: 460px;
   padding: 14px;
   border: 1px solid #dde5df;
   border-radius: 8px;
@@ -1207,7 +1207,8 @@ watch(
   }
 
   .work-world-card {
-    --work-world-cover-height: 228px;
+    --work-world-cover-height: 260px;
+    height: 420px;
   }
 
   .work-world-grid {

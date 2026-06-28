@@ -467,21 +467,23 @@ onMounted(() => {
 
 .world-card-cover {
   display: grid;
-  height: 168px;
+  height: 260px;
   place-items: center;
   overflow: hidden;
   border-bottom: 1px solid var(--color-line);
   color: #103b31;
-  background: var(--surface-cool);
+  background: #edf4f0;
   font-family: var(--font-display);
   font-size: 2rem;
   font-weight: 900;
 }
 
 .world-card-cover img {
+  display: block;
   width: 100%;
   height: 100%;
   object-fit: contain;
+  object-position: center;
 }
 
 .world-card-body {
