@@ -7,6 +7,10 @@ export async function onRequest({ request, env, params }) {
   const targetUrl = new URL(`${targetOrigin}/api/${path}`)
   targetUrl.search = sourceUrl.search
 
+  if (request.headers.get('Upgrade')?.toLowerCase() === 'websocket') {
+    return proxyWebSocket(request, targetUrl)
+  }
+
   const headers = buildProxyHeaders(request.headers)
   headers.set('x-forwarded-host', sourceUrl.host)
   headers.set('x-forwarded-proto', sourceUrl.protocol.replace(':', ''))
@@ -22,6 +26,13 @@ export async function onRequest({ request, env, params }) {
   }
 
   return fetch(targetUrl, init)
+}
+
+function proxyWebSocket(request, targetUrl) {
+  const websocketUrl = new URL(targetUrl)
+  websocketUrl.protocol = websocketUrl.protocol === 'https:' ? 'wss:' : 'ws:'
+
+  return fetch(new Request(websocketUrl, request))
 }
 
 function resolveTargetOrigin(value) {
