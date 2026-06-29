@@ -21,9 +21,22 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       proxy: {
+        '/api/ws': {
+          target: apiProxyTarget,
+          changeOrigin: true,
+          secure: false,
+          ws: true,
+          xfwd: true,
+          configure(proxy) {
+            proxy.on('error', (error) => {
+              console.error('[vite] websocket proxy error:', error.message)
+            })
+          }
+        },
         '/api': {
           target: apiProxyTarget,
           changeOrigin: true,
+          secure: false,
           ws: true
         }
       }

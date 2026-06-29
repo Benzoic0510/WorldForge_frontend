@@ -31,17 +31,14 @@ export async function onRequest({ request, env, params }) {
 }
 
 function proxyWebSocket(request, targetUrl) {
-  const headers = new Headers(request.headers)
-  const targetOrigin = `${targetUrl.protocol}//${targetUrl.host}`
+  const proxiedRequest = new Request(targetUrl, request)
+  const headers = new Headers(proxiedRequest.headers)
+  const sourceUrl = new URL(request.url)
 
-  headers.set('origin', targetOrigin)
-  headers.set('x-forwarded-host', new URL(request.url).host)
-  headers.set('x-forwarded-proto', new URL(request.url).protocol.replace(':', ''))
+  headers.set('x-forwarded-host', sourceUrl.host)
+  headers.set('x-forwarded-proto', sourceUrl.protocol.replace(':', ''))
 
-  return fetch(targetUrl, {
-    method: request.method,
-    headers
-  })
+  return fetch(new Request(proxiedRequest, { headers }))
 }
 
 function resolveConfiguredTarget(env, sourceUrl) {
