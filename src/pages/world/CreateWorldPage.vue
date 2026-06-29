@@ -37,7 +37,7 @@ const visibilityOptions: VisibilityOption[] = [
   },
   {
     value: 'protected',
-    label: '受保护',
+    label: '保护',
     description: '不会公开展示，用户可申请加入或使用邀请码。'
   },
   {

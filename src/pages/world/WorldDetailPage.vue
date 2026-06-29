@@ -477,7 +477,7 @@ function formatVisibility(value: WorldDetail['visibility']) {
     return '公开'
   }
   if (value === 'protected') {
-    return '受保护'
+    return '保护'
   }
   return '私有'
 }
@@ -1074,7 +1074,7 @@ watch(
               <select v-model="forkVisibility" class="field-input" :disabled="forking">
                 <option value="private">私有 — 仅自己可见</option>
                 <option value="public">公开 — 所有人可见</option>
-                <option value="protected">受保护 — 需申请或邀请加入</option>
+                <option value="protected">保护 — 需申请或邀请加入</option>
               </select>
             </label>
 

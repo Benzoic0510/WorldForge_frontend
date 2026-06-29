@@ -65,7 +65,7 @@ function formatDate(value: string) {
 
 function formatVisibility(value: WorldVisibility) {
   if (value === 'public') return '公开'
-  if (value === 'protected') return '仅邀请'
+  if (value === 'protected') return '保护'
   return '私有'
 }
 
@@ -970,7 +970,7 @@ watch(
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  height: 40px;
+  height: 48px;
   overflow: hidden;
   opacity: 0;
   transform: translateY(34px);
@@ -987,13 +987,13 @@ watch(
 .tag-list span {
   display: inline-flex;
   align-items: center;
-  min-height: 18px;
-  padding: 0 6px;
+  min-height: 22px;
+  padding: 0 7px;
   border: 1px solid #dfe7e2;
   border-radius: 7px;
   color: #305349;
   background: #f7faf8;
-  font-size: 0.68rem;
+  font-size: 0.72rem;
   font-weight: 700;
 }
 
