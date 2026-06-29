@@ -970,7 +970,7 @@ watch(
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  height: 48px;
+  height: 54px;
   overflow: hidden;
   opacity: 0;
   transform: translateY(34px);

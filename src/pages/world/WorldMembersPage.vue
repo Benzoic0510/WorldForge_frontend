@@ -93,11 +93,21 @@ function formatRole(role: string) {
   return '协作者'
 }
 
-function canManageMember(member: WorldMember) {
-  if (!canManageWorld.value || member.role === 'creator') {
+function canChangeMemberRole(member: WorldMember) {
+  if (world.value?.viewer.role !== 'creator' || member.role === 'creator') {
     return false
   }
   return member.userId !== authStore.currentUser?.userId
+}
+
+function canKickMember(member: WorldMember) {
+  if (member.role === 'creator' || member.userId === authStore.currentUser?.userId) {
+    return false
+  }
+  if (world.value?.viewer.role === 'creator') {
+    return true
+  }
+  return world.value?.viewer.role === 'co_admin' && member.role === 'contributor'
 }
 
 function actionKey(action: string, member: WorldMember) {
@@ -249,7 +259,7 @@ async function submitReview() {
 }
 
 async function changeMemberRole(member: WorldMember, role: 'contributor' | 'co_admin') {
-  if (!canManageMember(member) || member.role === role) return
+  if (!canChangeMemberRole(member) || member.role === role) return
 
   memberActionKey.value = actionKey(`role-${role}`, member)
   memberActionError.value = ''
@@ -265,7 +275,7 @@ async function changeMemberRole(member: WorldMember, role: 'contributor' | 'co_a
 }
 
 async function kickMember(member: WorldMember) {
-  if (!canManageMember(member)) return
+  if (!canKickMember(member)) return
   const confirmed = window.confirm(`确定要将 ${member.nickname || member.username} 移出这个世界吗？`)
   if (!confirmed) return
 
@@ -418,9 +428,9 @@ onMounted(async () => {
             </div>
             <span class="role-chip">{{ formatRole(member.role) }}</span>
             <time>{{ formatDateTime(member.joinedAt) }}</time>
-            <div v-if="canManageMember(member)" class="member-actions">
+            <div v-if="canChangeMemberRole(member) || canKickMember(member)" class="member-actions">
               <button
-                v-if="member.role !== 'contributor'"
+                v-if="canChangeMemberRole(member) && member.role !== 'contributor'"
                 type="button"
                 class="member-action"
                 :disabled="Boolean(memberActionKey)"
@@ -429,15 +439,16 @@ onMounted(async () => {
                 {{ memberActionKey === actionKey('role-contributor', member) ? '调整中...' : '设为协作者' }}
               </button>
               <button
-                v-if="member.role !== 'co_admin'"
+                v-if="canChangeMemberRole(member) && member.role !== 'co_admin'"
                 type="button"
                 class="member-action"
                 :disabled="Boolean(memberActionKey)"
                 @click="changeMemberRole(member, 'co_admin')"
               >
-                {{ memberActionKey === actionKey('role-co_admin', member) ? '调整中...' : '设为共管' }}
+                {{ memberActionKey === actionKey('role-co_admin', member) ? '调整中...' : '设为管理员' }}
               </button>
               <button
+                v-if="canKickMember(member)"
                 type="button"
                 class="member-action member-action--danger"
                 :disabled="Boolean(memberActionKey)"
