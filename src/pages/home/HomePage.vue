@@ -440,7 +440,7 @@ h1 {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  height: 48px;
+  height: 40px;
   overflow: hidden;
   opacity: 0;
   transform: translateY(34px);
@@ -457,13 +457,13 @@ h1 {
 .tag-list span {
   display: inline-flex;
   align-items: center;
-  min-height: 22px;
-  padding: 0 7px;
+  min-height: 18px;
+  padding: 0 6px;
   border: 1px solid #dfe7e2;
   border-radius: 7px;
   color: #305349;
   background: #f7faf8;
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   font-weight: 700;
 }
 
