@@ -1,13 +1,17 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { RouterLink, useRoute } from 'vue-router'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { ApiError } from '@/api/http'
 import {
   getWorldDetail,
+  leaveWorld,
   listJoinWorldRequests,
   listWorldMembers,
-  reviewJoinRequest
+  removeWorldMember,
+  reviewJoinRequest,
+  updateWorldMemberRole
 } from '@/api/world'
+import { useAuthStore } from '@/stores/auth'
 import type {
   PageResponse,
   WorldDetail,
@@ -20,6 +24,8 @@ type RequestStatus = 'pending' | 'approved' | 'rejected' | 'all'
 type ReviewDecision = 'approve' | 'reject'
 
 const route = useRoute()
+const router = useRouter()
+const authStore = useAuthStore()
 const worldId = computed(() => String(route.params.worldId || ''))
 
 const world = ref<WorldDetail | null>(null)
@@ -48,10 +54,17 @@ const reviewComment = ref('')
 const reviewSubmitting = ref(false)
 const reviewError = ref('')
 const successMessage = ref('')
+const memberActionKey = ref('')
+const memberActionError = ref('')
+const leavingWorld = ref(false)
 
 const canManageWorld = computed(() => {
   const role = world.value?.viewer.role
   return role === 'creator' || role === 'co_admin'
+})
+const canLeaveWorld = computed(() => {
+  const role = world.value?.viewer.role
+  return Boolean(role && role !== 'creator')
 })
 const canLoadMoreRequests = computed(() => requestPage.value < requestTotalPages.value)
 
@@ -78,6 +91,17 @@ function formatRole(role: string) {
   if (role === 'creator') return '创建者'
   if (role === 'co_admin') return '共同管理员'
   return '协作者'
+}
+
+function canManageMember(member: WorldMember) {
+  if (!canManageWorld.value || member.role === 'creator') {
+    return false
+  }
+  return member.userId !== authStore.currentUser?.userId
+}
+
+function actionKey(action: string, member: WorldMember) {
+  return `${action}:${member.userId}`
 }
 
 function statusLabel(status: string) {
@@ -224,6 +248,57 @@ async function submitReview() {
   }
 }
 
+async function changeMemberRole(member: WorldMember, role: 'contributor' | 'co_admin') {
+  if (!canManageMember(member) || member.role === role) return
+
+  memberActionKey.value = actionKey(`role-${role}`, member)
+  memberActionError.value = ''
+  try {
+    const updated = await updateWorldMemberRole(worldId.value, member.userId, { role })
+    members.value = members.value.map((item) => item.userId === updated.userId ? updated : item)
+    successMessage.value = `已将 ${member.nickname || member.username} 调整为${formatRole(role)}。`
+  } catch (error) {
+    memberActionError.value = getErrorMessage(error, '成员权限修改失败，请稍后重试。')
+  } finally {
+    memberActionKey.value = ''
+  }
+}
+
+async function kickMember(member: WorldMember) {
+  if (!canManageMember(member)) return
+  const confirmed = window.confirm(`确定要将 ${member.nickname || member.username} 移出这个世界吗？`)
+  if (!confirmed) return
+
+  memberActionKey.value = actionKey('remove', member)
+  memberActionError.value = ''
+  try {
+    await removeWorldMember(worldId.value, member.userId)
+    members.value = members.value.filter((item) => item.userId !== member.userId)
+    successMessage.value = `已将 ${member.nickname || member.username} 移出世界。`
+  } catch (error) {
+    memberActionError.value = getErrorMessage(error, '移出成员失败，请稍后重试。')
+  } finally {
+    memberActionKey.value = ''
+  }
+}
+
+async function leaveCurrentWorld() {
+  if (!canLeaveWorld.value || leavingWorld.value) return
+  const confirmed = window.confirm('确定要退出这个世界吗？退出后将失去该世界的成员权限。')
+  if (!confirmed) return
+
+  leavingWorld.value = true
+  memberActionError.value = ''
+  try {
+    await leaveWorld(worldId.value)
+    await router.push({ name: 'world-detail', params: { worldId: worldId.value } })
+  } catch (error) {
+    memberActionError.value = getErrorMessage(error, '退出世界失败，请稍后重试。')
+  } finally {
+    leavingWorld.value = false
+  }
+}
+
 onMounted(async () => {
   await loadAll()
 })
@@ -276,6 +351,15 @@ onMounted(async () => {
             <dd>{{ requestTotal }}</dd>
           </div>
         </dl>
+        <button
+          v-if="canLeaveWorld"
+          type="button"
+          class="leave-world-button"
+          :disabled="leavingWorld"
+          @click="leaveCurrentWorld"
+        >
+          {{ leavingWorld ? '退出中...' : '退出世界' }}
+        </button>
       </header>
 
       <nav class="section-tabs" aria-label="成员管理视图">
@@ -301,6 +385,10 @@ onMounted(async () => {
       <div v-if="successMessage" class="success-banner" role="status">
         {{ successMessage }}
         <button type="button" @click="successMessage = ''">关闭</button>
+      </div>
+      <div v-if="memberActionError" class="action-error-banner" role="alert">
+        {{ memberActionError }}
+        <button type="button" @click="memberActionError = ''">关闭</button>
       </div>
 
       <section v-if="activeTab === 'members'" class="members-panel">
@@ -330,6 +418,34 @@ onMounted(async () => {
             </div>
             <span class="role-chip">{{ formatRole(member.role) }}</span>
             <time>{{ formatDateTime(member.joinedAt) }}</time>
+            <div v-if="canManageMember(member)" class="member-actions">
+              <button
+                v-if="member.role !== 'contributor'"
+                type="button"
+                class="member-action"
+                :disabled="Boolean(memberActionKey)"
+                @click="changeMemberRole(member, 'contributor')"
+              >
+                {{ memberActionKey === actionKey('role-contributor', member) ? '调整中...' : '设为协作者' }}
+              </button>
+              <button
+                v-if="member.role !== 'co_admin'"
+                type="button"
+                class="member-action"
+                :disabled="Boolean(memberActionKey)"
+                @click="changeMemberRole(member, 'co_admin')"
+              >
+                {{ memberActionKey === actionKey('role-co_admin', member) ? '调整中...' : '设为共管' }}
+              </button>
+              <button
+                type="button"
+                class="member-action member-action--danger"
+                :disabled="Boolean(memberActionKey)"
+                @click="kickMember(member)"
+              >
+                {{ memberActionKey === actionKey('remove', member) ? '移出中...' : '踢出' }}
+              </button>
+            </div>
           </article>
         </div>
       </section>
@@ -478,7 +594,8 @@ onMounted(async () => {
 .members-panel,
 .members-state,
 .section-tabs,
-.success-banner {
+.success-banner,
+.action-error-banner {
   border: 1px solid rgb(16 59 49 / 12%);
   border-radius: 8px;
   background:
@@ -489,7 +606,7 @@ onMounted(async () => {
 
 .members-header {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   gap: 20px;
   align-items: end;
   padding: 24px;
@@ -594,8 +711,11 @@ onMounted(async () => {
 .panel-action,
 .state-button,
 .success-banner button,
+.action-error-banner button,
 .review-button,
-.modal-button {
+.modal-button,
+.member-action,
+.leave-world-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -612,9 +732,17 @@ onMounted(async () => {
 }
 
 .panel-action:disabled,
-.modal-button:disabled {
+.modal-button:disabled,
+.member-action:disabled,
+.leave-world-button:disabled {
   cursor: wait;
   opacity: 0.62;
+}
+
+.leave-world-button {
+  border-color: rgb(176 64 64 / 28%);
+  color: #8f2d2d;
+  background: rgb(255 246 242 / 76%);
 }
 
 .members-state {
@@ -666,7 +794,7 @@ onMounted(async () => {
 
 .member-row {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto minmax(170px, auto);
+  grid-template-columns: auto minmax(0, 1fr) auto minmax(170px, auto) auto;
   gap: 14px;
   align-items: center;
   padding: 14px;
@@ -711,6 +839,25 @@ onMounted(async () => {
   color: var(--color-muted);
   font-size: 0.86rem;
   font-weight: 800;
+}
+
+.member-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.member-action {
+  min-height: 32px;
+  padding-inline: 10px;
+  font-size: 0.78rem;
+}
+
+.member-action--danger {
+  border-color: rgb(176 64 64 / 24%);
+  color: #8f2d2d;
+  background: rgb(255 246 242 / 72%);
 }
 
 .role-chip,
@@ -810,7 +957,8 @@ onMounted(async () => {
 }
 
 .append-error-row,
-.success-banner {
+.success-banner,
+.action-error-banner {
   justify-content: space-between;
   padding: 12px 14px;
   color: #6c2424;
@@ -821,6 +969,10 @@ onMounted(async () => {
 .success-banner {
   color: #14735a;
   background: rgb(232 241 237 / 82%);
+}
+
+.action-error-banner {
+  color: #a1322b;
 }
 
 .load-more-row {
@@ -959,7 +1111,8 @@ onMounted(async () => {
 
   .request-card__top,
   .append-error-row,
-  .success-banner {
+  .success-banner,
+  .action-error-banner {
     align-items: stretch;
     flex-direction: column;
   }

@@ -159,6 +159,10 @@ export interface ReviewJoinWorldRequest {
   comment?: string
 }
 
+export interface UpdateWorldMemberRoleRequest {
+  role: 'contributor' | 'co_admin'
+}
+
 export interface CreateWorldInvitationRequest {
   inviteeUserId: string
   role: 'contributor' | 'co_admin'

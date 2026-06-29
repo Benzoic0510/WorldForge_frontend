@@ -38,6 +38,11 @@ export interface CreateRpgChannelRequest {
   memberUserIds?: string[]
 }
 
+export interface AddRpgChannelMembersRequest {
+  userId?: string
+  memberUserIds?: string[]
+}
+
 export interface ChatMessageSender {
   userId: string
   ocId: string | null

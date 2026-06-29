@@ -1,5 +1,6 @@
 import { request } from './http'
 import type {
+  AddRpgChannelMembersRequest,
   ChatMessageHistoryResponse,
   CreateOcRequest,
   CreateRpgChannelRequest,
@@ -61,6 +62,41 @@ export function createChannel(
       method: 'POST',
       body: payload
     }
+  )
+}
+
+/** 邀请成员进入私密 RPG 频道 */
+export function addChannelMembers(
+  worldId: string,
+  channelId: string,
+  payload: AddRpgChannelMembersRequest
+): Promise<RpgChannelResponse> {
+  return request<RpgChannelResponse>(
+    `/api/worlds/${encodeURIComponent(worldId)}/rpg/channels/${encodeURIComponent(channelId)}/members`,
+    {
+      method: 'POST',
+      body: payload
+    }
+  )
+}
+
+/** 将成员移出 RPG 频道 */
+export function removeChannelMember(
+  worldId: string,
+  channelId: string,
+  memberUserId: string
+): Promise<void> {
+  return request<void>(
+    `/api/worlds/${encodeURIComponent(worldId)}/rpg/channels/${encodeURIComponent(channelId)}/members/${encodeURIComponent(memberUserId)}`,
+    { method: 'DELETE' }
+  )
+}
+
+/** 当前成员退出 RPG 频道 */
+export function leaveChannel(worldId: string, channelId: string): Promise<void> {
+  return request<void>(
+    `/api/worlds/${encodeURIComponent(worldId)}/rpg/channels/${encodeURIComponent(channelId)}/leave`,
+    { method: 'POST' }
   )
 }
 

@@ -20,3 +20,9 @@ export function searchUsers(keyword: string, limit = 10): Promise<UserSummary[]>
   searchParams.set('limit', String(limit))
   return request<UserSummary[]>(`/api/users/search?${searchParams.toString()}`)
 }
+
+export function deleteCurrentUser(): Promise<void> {
+  return request<void>('/api/users/me', {
+    method: 'DELETE'
+  })
+}

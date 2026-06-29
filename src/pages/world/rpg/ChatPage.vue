@@ -1,7 +1,16 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
-import { createChannel, listChannelMessages, listChannels, listMyOcs, recallChannelMessage } from '@/api/rpg'
+import {
+  addChannelMembers,
+  createChannel,
+  leaveChannel,
+  listChannelMessages,
+  listChannels,
+  listMyOcs,
+  recallChannelMessage,
+  removeChannelMember
+} from '@/api/rpg'
 import { ApiError } from '@/api/http'
 import { getWorldDetail, listWorldMembers } from '@/api/world'
 import { useAuthStore } from '@/stores/auth'
@@ -22,6 +31,7 @@ const selectedChannelId = ref<string | null>(null)
 const selectedChannel = computed(() =>
   channels.value.find((channel) => channel.channelId === selectedChannelId.value) ?? null
 )
+const selectedChannelMemberIds = computed(() => selectedChannel.value?.memberUserIds ?? [])
 
 const worldRole = ref<'creator' | 'co_admin' | 'contributor' | null>(null)
 const members = ref<WorldMember[]>([])
@@ -33,9 +43,25 @@ const canCreatePublicChannel = computed(() =>
 )
 
 const canCreateChannel = computed(() => Boolean(worldRole.value))
+const canManageSelectedChannel = computed(() =>
+  Boolean(selectedChannel.value?.channelType === 'private' && canCreatePublicChannel.value)
+)
+const canLeaveSelectedChannel = computed(() =>
+  Boolean(
+    selectedChannel.value?.channelType === 'private' &&
+    authStore.currentUser?.userId &&
+    selectedChannelMemberIds.value.includes(authStore.currentUser.userId)
+  )
+)
 
 const visibleMembers = computed(() =>
   members.value.filter((member) => member.userId !== authStore.currentUser?.userId)
+)
+const channelMembers = computed(() =>
+  members.value.filter((member) => selectedChannelMemberIds.value.includes(member.userId))
+)
+const availableChannelMembers = computed(() =>
+  visibleMembers.value.filter((member) => !selectedChannelMemberIds.value.includes(member.userId))
 )
 
 const messages = ref<ChatMessageResponse[]>([])
@@ -86,6 +112,12 @@ const createChannelType = ref<'public' | 'private'>('private')
 const selectedMemberIds = ref<string[]>([])
 const creatingChannel = ref(false)
 const createError = ref('')
+const managePanelOpen = ref(false)
+const channelAddMemberIds = ref<string[]>([])
+const channelManaging = ref(false)
+const channelActionKey = ref('')
+const channelManageError = ref('')
+const channelManageMessage = ref('')
 
 const displayName = computed(() => {
   if (selectedIdentity.value.type === 'oc') {
@@ -520,6 +552,103 @@ function toggleMember(userId: string) {
   }
 }
 
+function toggleChannelAddMember(userId: string) {
+  if (channelAddMemberIds.value.includes(userId)) {
+    channelAddMemberIds.value = channelAddMemberIds.value.filter((id) => id !== userId)
+  } else {
+    channelAddMemberIds.value = [...channelAddMemberIds.value, userId]
+  }
+}
+
+function updateChannel(updated: RpgChannelResponse) {
+  channels.value = channels.value.map((channel) =>
+    channel.channelId === updated.channelId ? updated : channel
+  )
+}
+
+function removeSelectedChannelFromList() {
+  const leavingId = selectedChannelId.value
+  channels.value = channels.value.filter((channel) => channel.channelId !== leavingId)
+  selectedChannelId.value = channels.value[0]?.channelId ?? null
+}
+
+function openManagePanel() {
+  if (!selectedChannel.value || selectedChannel.value.channelType !== 'private') return
+  managePanelOpen.value = true
+  channelAddMemberIds.value = []
+  channelManageError.value = ''
+  channelManageMessage.value = ''
+  if (members.value.length === 0 && !membersLoading.value) {
+    loadMembers()
+  }
+}
+
+function closeManagePanel() {
+  if (channelManaging.value) return
+  managePanelOpen.value = false
+}
+
+async function submitAddChannelMembers() {
+  if (!selectedChannel.value || channelAddMemberIds.value.length === 0) return
+
+  channelManaging.value = true
+  channelManageError.value = ''
+  channelManageMessage.value = ''
+  try {
+    const updated = await addChannelMembers(worldId.value, selectedChannel.value.channelId, {
+      memberUserIds: channelAddMemberIds.value
+    })
+    updateChannel(updated)
+    channelAddMemberIds.value = []
+    channelManageMessage.value = '已邀请成员进入频道。'
+  } catch (error) {
+    channelManageError.value = error instanceof ApiError ? error.message : '邀请成员失败'
+  } finally {
+    channelManaging.value = false
+  }
+}
+
+async function kickChannelMember(member: WorldMember) {
+  if (!selectedChannel.value || !canManageSelectedChannel.value) return
+  const confirmed = window.confirm(`确定要将 ${member.nickname || member.username} 移出频道吗？`)
+  if (!confirmed) return
+
+  channelActionKey.value = `remove:${member.userId}`
+  channelManageError.value = ''
+  channelManageMessage.value = ''
+  try {
+    await removeChannelMember(worldId.value, selectedChannel.value.channelId, member.userId)
+    updateChannel({
+      ...selectedChannel.value,
+      memberUserIds: selectedChannel.value.memberUserIds.filter((id) => id !== member.userId)
+    })
+    channelManageMessage.value = '已将成员移出频道。'
+  } catch (error) {
+    channelManageError.value = error instanceof ApiError ? error.message : '移出成员失败'
+  } finally {
+    channelActionKey.value = ''
+  }
+}
+
+async function leaveSelectedChannel() {
+  if (!selectedChannel.value || !canLeaveSelectedChannel.value) return
+  const confirmed = window.confirm('确定要退出这个私密频道吗？')
+  if (!confirmed) return
+
+  channelActionKey.value = 'leave:self'
+  channelManageError.value = ''
+  channelManageMessage.value = ''
+  try {
+    await leaveChannel(worldId.value, selectedChannel.value.channelId)
+    closeManagePanel()
+    removeSelectedChannelFromList()
+  } catch (error) {
+    channelManageError.value = error instanceof ApiError ? error.message : '退出频道失败'
+  } finally {
+    channelActionKey.value = ''
+  }
+}
+
 async function submitCreateChannel() {
   const name = createName.value.trim()
   if (!name) {
@@ -550,6 +679,7 @@ function handleKeydown(event: KeyboardEvent) {
   if (event.key === 'Escape') {
     identityPanelOpen.value = false
     createPanelOpen.value = false
+    managePanelOpen.value = false
     closeMessageContextMenu()
   }
 }
@@ -650,6 +780,15 @@ onUnmounted(() => {
           <RouterLink class="chat-header__action" :to="{ name: 'rpg-ocs', params: { worldId } }">
             管理角色
           </RouterLink>
+
+          <button
+            v-if="selectedChannel?.channelType === 'private'"
+            class="chat-header__action"
+            type="button"
+            @click="openManagePanel"
+          >
+            频道成员
+          </button>
 
           <div ref="identityRef" class="identity-switcher">
             <button
@@ -881,6 +1020,99 @@ onUnmounted(() => {
             <button class="secondary-btn" type="button" @click="closeCreatePanel">取消</button>
             <button class="primary-btn" type="button" :disabled="creatingChannel" @click="submitCreateChannel">
               {{ creatingChannel ? '创建中...' : '创建频道' }}
+            </button>
+          </footer>
+        </section>
+      </div>
+    </Transition>
+
+    <Transition name="fade">
+      <div v-if="managePanelOpen" class="modal-backdrop" @click.self="closeManagePanel">
+        <section class="create-panel" aria-label="频道成员管理">
+          <header class="create-panel__header">
+            <div>
+              <h3>频道成员</h3>
+              <p>{{ selectedChannel?.name || '私密频道' }}</p>
+            </div>
+            <button class="modal-close" type="button" title="关闭" @click="closeManagePanel">x</button>
+          </header>
+
+          <div class="channel-member-section">
+            <div class="member-picker__top">
+              <span>已在频道</span>
+              <small>{{ channelMembers.length }} 人</small>
+            </div>
+            <div v-if="membersLoading" class="member-state">成员加载中...</div>
+            <div v-else-if="membersError" class="member-state member-state--error">{{ membersError }}</div>
+            <div v-else-if="channelMembers.length === 0" class="member-state">暂无成员信息</div>
+            <div v-else class="channel-member-list">
+              <div v-for="member in channelMembers" :key="member.userId" class="channel-member-row">
+                <span class="member-avatar">
+                  <img v-if="member.avatarUrl" :src="member.avatarUrl" alt="" />
+                  <span v-else>{{ (member.nickname || member.username || '?').charAt(0) }}</span>
+                </span>
+                <span class="member-name">{{ member.nickname || member.username }}</span>
+                <span class="member-role">{{ roleLabel(member.role) }}</span>
+                <button
+                  v-if="canManageSelectedChannel && member.userId !== authStore.currentUser?.userId"
+                  type="button"
+                  class="tiny-danger-btn"
+                  :disabled="Boolean(channelActionKey)"
+                  @click="kickChannelMember(member)"
+                >
+                  {{ channelActionKey === `remove:${member.userId}` ? '移出中...' : '移出' }}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="canManageSelectedChannel" class="member-picker">
+            <div class="member-picker__top">
+              <span>邀请成员</span>
+              <small>选择要加入此私密频道的世界成员</small>
+            </div>
+            <div v-if="membersLoading" class="member-state">成员加载中...</div>
+            <div v-else-if="membersError" class="member-state member-state--error">{{ membersError }}</div>
+            <div v-else-if="availableChannelMembers.length === 0" class="member-state">暂无可邀请成员</div>
+            <button
+              v-for="member in availableChannelMembers"
+              :key="member.userId"
+              class="member-option"
+              :class="{ 'member-option--selected': channelAddMemberIds.includes(member.userId) }"
+              type="button"
+              @click="toggleChannelAddMember(member.userId)"
+            >
+              <span class="member-avatar">
+                <img v-if="member.avatarUrl" :src="member.avatarUrl" alt="" />
+                <span v-else>{{ (member.nickname || member.username || '?').charAt(0) }}</span>
+              </span>
+              <span class="member-name">{{ member.nickname || member.username }}</span>
+              <span class="member-role">{{ roleLabel(member.role) }}</span>
+            </button>
+          </div>
+
+          <p v-if="channelManageMessage" class="create-success">{{ channelManageMessage }}</p>
+          <p v-if="channelManageError" class="create-error">{{ channelManageError }}</p>
+
+          <footer class="create-panel__footer">
+            <button
+              v-if="canLeaveSelectedChannel"
+              class="danger-outline-btn"
+              type="button"
+              :disabled="Boolean(channelActionKey)"
+              @click="leaveSelectedChannel"
+            >
+              {{ channelActionKey === 'leave:self' ? '退出中...' : '退出频道' }}
+            </button>
+            <button class="secondary-btn" type="button" @click="closeManagePanel">关闭</button>
+            <button
+              v-if="canManageSelectedChannel"
+              class="primary-btn"
+              type="button"
+              :disabled="channelManaging || channelAddMemberIds.length === 0"
+              @click="submitAddChannelMembers"
+            >
+              {{ channelManaging ? '邀请中...' : '邀请成员' }}
             </button>
           </footer>
         </section>
@@ -1141,7 +1373,9 @@ onUnmounted(() => {
   background: rgb(255 255 255 / 62%);
   font-size: 0.82rem;
   font-weight: 800;
+  font-family: inherit;
   text-decoration: none;
+  cursor: pointer;
 }
 
 .identity-switcher {
@@ -1623,6 +1857,27 @@ onUnmounted(() => {
   margin-top: 16px;
 }
 
+.channel-member-section {
+  display: grid;
+  gap: 8px;
+}
+
+.channel-member-list {
+  display: grid;
+  gap: 8px;
+}
+
+.channel-member-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 7px 10px;
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  background: rgb(255 255 255 / 72%);
+}
+
 .member-option {
   display: flex;
   align-items: center;
@@ -1662,6 +1917,45 @@ onUnmounted(() => {
   margin: 12px 0 0;
   font-size: 0.82rem;
   font-weight: 800;
+}
+
+.create-success {
+  margin: 12px 0 0;
+  color: #14735a;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.tiny-danger-btn,
+.danger-outline-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgb(176 64 64 / 24%);
+  border-radius: 8px;
+  color: #8f2d2d;
+  background: rgb(255 246 242 / 72%);
+  font: inherit;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.tiny-danger-btn {
+  min-height: 30px;
+  padding: 0 10px;
+  font-size: 0.76rem;
+}
+
+.danger-outline-btn {
+  min-height: 42px;
+  padding: 0 16px;
+  font-size: 0.88rem;
+}
+
+.tiny-danger-btn:disabled,
+.danger-outline-btn:disabled {
+  cursor: wait;
+  opacity: 0.6;
 }
 
 .create-panel__footer {

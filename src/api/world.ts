@@ -12,6 +12,7 @@ import type {
   ListWorldsParams,
   PageResponse,
   ReviewJoinWorldRequest,
+  UpdateWorldMemberRoleRequest,
   UpdateWorldRequest,
   UploadImageResponse,
   WorldDetail,
@@ -62,6 +63,31 @@ export function getWorldDetail(worldId: string): Promise<WorldDetail> {
 
 export function listWorldMembers(worldId: string): Promise<WorldMember[]> {
   return request<WorldMember[]>(`/api/worlds/${encodeURIComponent(worldId)}/members`)
+}
+
+export function updateWorldMemberRole(
+  worldId: string,
+  memberUserId: string,
+  payload: UpdateWorldMemberRoleRequest
+): Promise<WorldMember> {
+  return request<WorldMember>(
+    `/api/worlds/${encodeURIComponent(worldId)}/members/${encodeURIComponent(memberUserId)}`,
+    { method: 'PATCH', body: payload }
+  )
+}
+
+export function removeWorldMember(worldId: string, memberUserId: string): Promise<void> {
+  return request<void>(
+    `/api/worlds/${encodeURIComponent(worldId)}/members/${encodeURIComponent(memberUserId)}`,
+    { method: 'DELETE' }
+  )
+}
+
+export function leaveWorld(worldId: string): Promise<void> {
+  return request<void>(
+    `/api/worlds/${encodeURIComponent(worldId)}/leave`,
+    { method: 'POST' }
+  )
 }
 
 export function createWorld(payload: CreateWorldRequest): Promise<CreateWorldResponse> {

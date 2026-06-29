@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { ApiError } from '@/api/http'
 import { useAuthStore } from '@/stores/auth'
-import { uploadCurrentUserAvatar } from '@/api/user'
+import { deleteCurrentUser, uploadCurrentUserAvatar } from '@/api/user'
 
 interface ProfileForm {
   nickname: string
@@ -15,6 +17,7 @@ interface PasswordForm {
 }
 
 const authStore = useAuthStore()
+const router = useRouter()
 
 const currentUser = computed(() => authStore.currentUser)
 
@@ -40,6 +43,8 @@ const passwordForm = reactive<PasswordForm>({
 const passwordSubmitting = ref(false)
 const passwordMessage = ref('')
 const passwordIsError = ref(false)
+const deletingAccount = ref(false)
+const deleteMessage = ref('')
 
 const displayName = computed(() => currentUser.value?.nickname || currentUser.value?.username || '用户')
 
@@ -181,6 +186,24 @@ async function handleAvatarSelected(event: Event) {
   }
 }
 
+async function handleDeleteAccount() {
+  if (deletingAccount.value) return
+  const confirmed = window.confirm('确定要注销当前账号吗？账号删除后无法恢复。')
+  if (!confirmed) return
+
+  deletingAccount.value = true
+  deleteMessage.value = ''
+  try {
+    await deleteCurrentUser()
+    authStore.clearSession()
+    await router.push({ name: 'home' })
+  } catch (error) {
+    deleteMessage.value = error instanceof ApiError ? error.message : '账号注销失败，请稍后重试'
+  } finally {
+    deletingAccount.value = false
+  }
+}
+
 onBeforeUnmount(() => {
   revokeAvatarPreview()
 })
@@ -317,8 +340,12 @@ onBeforeUnmount(() => {
         <p class="section-desc">删除账号后，所有数据将被永久清除且不可恢复</p>
       </div>
 
-      <button type="button" class="danger-btn" disabled>
-        删除账号（功能开发中）
+      <p v-if="deleteMessage" class="form-message form-message--error">
+        {{ deleteMessage }}
+      </p>
+
+      <button type="button" class="danger-btn" :disabled="deletingAccount" @click="handleDeleteAccount">
+        {{ deletingAccount ? '注销中...' : '删除账号' }}
       </button>
     </section>
   </main>
@@ -565,8 +592,12 @@ textarea:focus {
   background: transparent;
   font: inherit;
   font-weight: 800;
-  cursor: not-allowed;
-  opacity: 0.6;
+  cursor: pointer;
+}
+
+.danger-btn:disabled {
+  cursor: wait;
+  opacity: 0.68;
 }
 
 @media (max-width: 640px) {
