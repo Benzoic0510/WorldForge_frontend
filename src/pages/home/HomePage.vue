@@ -129,47 +129,20 @@ onMounted(async () => {
             :to="{ name: 'world-detail', params: { worldId: world.id } }"
             class="world-card"
           >
-            <div class="world-reveal">
-              <div class="world-cover" aria-hidden="true">
-                <img v-if="world.coverImageUrl" :src="world.coverImageUrl" alt="">
-                <span v-else>{{ world.title.charAt(0) }}</span>
-              </div>
-
-              <div class="world-main">
-                <div class="world-title-line">
-                  <h3>{{ world.title }}</h3>
-                  <span class="visibility-chip">{{ world.visibilityLabel }}</span>
-                </div>
-                <p>{{ world.summary || '暂无简介。' }}</p>
-                <div class="tag-list" aria-label="标签">
-                  <span v-for="tag in world.tags.slice(0, 4)" :key="tag">{{ tag }}</span>
-                  <span v-if="world.tags.length > 4">+{{ world.tags.length - 4 }}</span>
-                </div>
-              </div>
+            <div class="world-card-cover">
+              <img v-if="world.coverImageUrl" :src="world.coverImageUrl" alt="">
+              <span v-else>{{ world.title.charAt(0) }}</span>
             </div>
-
-            <div class="world-side">
-              <div class="creator-line">
-                <span class="creator-avatar" aria-hidden="true">{{ world.creator.charAt(0) }}</span>
-                <strong>{{ world.creator }}</strong>
+            <div class="world-card-body">
+              <h3>{{ world.title }}</h3>
+              <p>{{ world.summary || '暂无简介。' }}</p>
+              <div v-if="world.tags.length > 0" class="tag-list" aria-label="标签">
+                <span v-for="tag in world.tags" :key="tag">{{ tag }}</span>
               </div>
-
-              <div class="world-metrics">
-                <span>{{ world.entryCount }} 词条</span>
-                <small>{{ world.updatedAt }}</small>
+              <div class="world-card-footer">
+                <span class="world-card-meta">{{ world.entryCount }} 词条</span>
+                <span class="world-card-meta">{{ world.updatedAt }}</span>
               </div>
-
-              <span class="detail-button">
-                <svg
-                  class="detail-button__icon"
-                  viewBox="0 0 16 16"
-                  aria-hidden="true"
-                  focusable="false"
-                >
-                  <path d="M6 3.5 10.5 8 6 12.5" />
-                </svg>
-                <span class="detail-button__text">查看详情</span>
-              </span>
             </div>
           </RouterLink>
         </div>
@@ -300,60 +273,29 @@ h1 {
 .world-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 18px;
+  gap: 16px;
 }
 
 .world-card {
-  --world-cover-height: 280px;
-  --world-reveal-offset: calc((var(--world-cover-height) + 18px) * -1);
-  position: relative;
-  display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
-  gap: 8px;
-  height: 450px;
-  padding: 14px;
-  border: 1px solid #dde5df;
+  border: 1px solid var(--color-line);
   border-radius: 8px;
   color: inherit;
-  background: #fffdfa;
+  background: rgb(255 255 255 / 58%);
   overflow: hidden;
   text-decoration: none;
-  transition:
-    transform 150ms ease,
-    border-color 150ms ease,
-    box-shadow 150ms ease;
+  transition: box-shadow 150ms ease;
 }
 
 .world-card:hover {
-  transform: translateY(-2px);
-  border-color: #b8ccc2;
-  box-shadow: 0 12px 24px rgb(24 33 31 / 8%);
+  box-shadow: 0 4px 20px rgb(24 33 31 / 8%);
 }
 
-.world-reveal {
+.world-card-cover {
   display: grid;
-  gap: 12px;
-  min-width: 0;
-  min-height: 0;
-  overflow: visible;
-  transition: transform 230ms ease;
-  will-change: transform;
-}
-
-.world-card:hover .world-reveal {
-  transform: translateY(var(--world-reveal-offset));
-}
-
-.world-cover {
-  position: relative;
-  z-index: 3;
-  display: grid;
-  width: 100%;
-  height: var(--world-cover-height);
+  height: 260px;
   place-items: center;
   overflow: hidden;
-  border: 1px solid #e2e7e3;
-  border-radius: 8px;
+  border-bottom: 1px solid var(--color-line);
   color: #103b31;
   background: #edf4f0;
   font-family: var(--font-display);
@@ -361,226 +303,67 @@ h1 {
   font-weight: 900;
 }
 
-.world-cover img {
+.world-card-cover img {
+  display: block;
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: cover;
+  object-position: center;
 }
 
-.world-main {
-  position: relative;
-  z-index: 2;
+.world-card-body {
   display: grid;
-  gap: 0;
-  min-width: 0;
-  min-height: 28px;
-  align-content: start;
-  overflow: visible;
+  gap: 10px;
+  padding: 16px;
 }
 
-.world-title-line {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.world-title-line h3 {
-  overflow: hidden;
+.world-card-body h3 {
   margin: 0;
-  font-size: 1.2rem;
-  line-height: 1.2;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  font-size: 1.18rem;
+  line-height: 1.3;
 }
 
-.world-card p {
-  position: absolute;
-  top: 34px;
-  left: 0;
-  right: 0;
+.world-card-body p {
   display: -webkit-box;
   overflow: hidden;
-  height: calc(0.9rem * 1.5 * 10);
-  margin-top: 0;
+  margin: 0;
   color: var(--color-muted);
-  font-size: 0.9rem;
-  line-height: 1.5;
-  opacity: 0;
-  transform: translateY(28px);
-  transition:
-    opacity 180ms ease 60ms,
-    transform 210ms ease 40ms;
+  font-size: 0.88rem;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 10;
-}
-
-.world-card:hover p {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-.visibility-chip {
-  flex: 0 0 auto;
-  min-height: 24px;
-  padding: 3px 8px;
-  border: 1px solid var(--color-line);
-  border-radius: 999px;
-  color: #305349;
-  background: #f5faf7;
-  font-size: 0.76rem;
-  font-weight: 800;
+  -webkit-line-clamp: 2;
 }
 
 .tag-list {
-  position: absolute;
-  top: calc(34px + (0.9rem * 1.5 * 10) + 16px);
-  left: 0;
-  right: 0;
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-start;
   gap: 6px;
-  height: 60px;
-  overflow: hidden;
-  opacity: 0;
-  transform: translateY(34px);
-  transition:
-    opacity 180ms ease 80ms,
-    transform 210ms ease 60ms;
-}
-
-.world-card:hover .tag-list {
-  opacity: 1;
-  transform: translateY(0);
 }
 
 .tag-list span {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 28px;
-  min-height: 0;
-  padding: 0 10px;
-  border: 1px solid #dfe7e2;
-  border-radius: 8px;
-  color: #305349;
-  background: #f7faf8;
-  font-size: 0.78rem;
-  font-weight: 700;
-  line-height: 1;
-}
-
-.world-side {
-  position: relative;
-  z-index: 4;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px 12px;
-  align-items: end;
-  align-self: end;
-}
-
-.creator-line {
-  display: inline-flex;
-  align-items: center;
-  min-width: 0;
-  gap: 8px;
-}
-
-.creator-avatar {
-  display: grid;
-  flex: 0 0 auto;
-  width: 30px;
-  height: 30px;
-  place-items: center;
-  overflow: hidden;
-  border: 1px solid #dbe5df;
-  border-radius: 50%;
-  color: #103b31;
-  background: #edf4f0;
-  font-size: 0.84rem;
-  font-weight: 900;
-}
-
-.creator-line strong {
-  overflow: hidden;
-  color: var(--color-ink);
-  font-size: 0.88rem;
-  font-weight: 900;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.world-metrics {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  grid-column: 1;
-  color: var(--color-muted);
-  font-size: 0.82rem;
-}
-
-.world-metrics span {
-  color: var(--color-ink);
+  padding: 3px 7px;
+  border: 1px solid rgb(20 115 90 / 18%);
+  border-radius: 6px;
+  color: var(--color-accent);
+  background: rgb(20 115 90 / 7%);
+  font-size: 0.72rem;
   font-weight: 800;
 }
 
-.world-metrics small {
-  color: #61706b;
+.world-card-footer {
+  display: flex;
+  gap: 16px;
+  padding-top: 8px;
+  border-top: 1px solid var(--color-line);
+}
+
+.world-card-meta {
+  color: var(--color-muted);
   font-size: 0.78rem;
-}
-
-.detail-button {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  grid-column: 2;
-  grid-row: 1 / span 2;
-  width: 92px;
-  min-height: 34px;
-  padding: 0 14px;
-  border-radius: 6px;
-  color: #fff;
-  background: #14735a;
-  font-size: 0.78rem;
-  font-weight: 900;
-}
-
-.detail-button__icon {
-  position: absolute;
-  left: 10px;
-  width: 16px;
-  height: 16px;
-  overflow: visible;
-  stroke: currentcolor;
-  stroke-width: 2.2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  fill: none;
-  opacity: 0;
-  transform: translateX(-10px);
-  transition:
-    opacity 160ms ease,
-    transform 180ms ease;
-}
-
-.detail-button__text {
-  transition: transform 180ms ease;
-}
-
-.world-card:hover .detail-button {
-  background: #103b31;
-}
-
-.world-card:hover .detail-button__icon {
-  opacity: 1;
-  transform: translateX(0);
-}
-
-.world-card:hover .detail-button__text {
-  transform: translateX(7px);
 }
 
 @media (max-width: 1040px) {
