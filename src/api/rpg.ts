@@ -65,6 +65,14 @@ export function createChannel(
   )
 }
 
+/** 解散 RPG 频道 */
+export function deleteChannel(worldId: string, channelId: string): Promise<void> {
+  return request<void>(
+    `/api/worlds/${encodeURIComponent(worldId)}/rpg/channels/${encodeURIComponent(channelId)}`,
+    { method: 'DELETE' }
+  )
+}
+
 /** 邀请成员进入私密 RPG 频道 */
 export function addChannelMembers(
   worldId: string,

@@ -4,6 +4,7 @@ import { RouterLink, useRoute } from 'vue-router'
 import {
   addChannelMembers,
   createChannel,
+  deleteChannel,
   leaveChannel,
   listChannelMessages,
   listChannels,
@@ -32,6 +33,12 @@ const selectedChannel = computed(() =>
   channels.value.find((channel) => channel.channelId === selectedChannelId.value) ?? null
 )
 const selectedChannelMemberIds = computed(() => selectedChannel.value?.memberUserIds ?? [])
+const selectedChannelCreatorId = computed(() =>
+  selectedChannel.value?.creatorId ||
+  selectedChannel.value?.createdBy ||
+  selectedChannel.value?.ownerId ||
+  ''
+)
 
 const worldRole = ref<'creator' | 'co_admin' | 'contributor' | null>(null)
 const members = ref<WorldMember[]>([])
@@ -44,14 +51,21 @@ const canCreatePublicChannel = computed(() =>
 
 const canCreateChannel = computed(() => Boolean(worldRole.value))
 const canManageSelectedChannel = computed(() =>
-  Boolean(selectedChannel.value?.channelType === 'private' && canCreatePublicChannel.value)
+  Boolean(selectedChannel.value && selectedChannelCreatorId.value === authStore.currentUser?.userId)
 )
 const canLeaveSelectedChannel = computed(() =>
   Boolean(
     selectedChannel.value?.channelType === 'private' &&
     authStore.currentUser?.userId &&
-    selectedChannelMemberIds.value.includes(authStore.currentUser.userId)
+    selectedChannelMemberIds.value.includes(authStore.currentUser.userId) &&
+    !canManageSelectedChannel.value
   )
+)
+const canInviteSelectedChannelMembers = computed(() =>
+  Boolean(selectedChannel.value?.channelType === 'private' && canManageSelectedChannel.value)
+)
+const canOpenChannelPanel = computed(() =>
+  Boolean(selectedChannel.value?.channelType === 'private' || canManageSelectedChannel.value)
 )
 
 const visibleMembers = computed(() =>
@@ -573,7 +587,7 @@ function removeSelectedChannelFromList() {
 }
 
 function openManagePanel() {
-  if (!selectedChannel.value || selectedChannel.value.channelType !== 'private') return
+  if (!selectedChannel.value || !canOpenChannelPanel.value) return
   managePanelOpen.value = true
   channelAddMemberIds.value = []
   channelManageError.value = ''
@@ -589,7 +603,7 @@ function closeManagePanel() {
 }
 
 async function submitAddChannelMembers() {
-  if (!selectedChannel.value || channelAddMemberIds.value.length === 0) return
+  if (!selectedChannel.value || !canInviteSelectedChannelMembers.value || channelAddMemberIds.value.length === 0) return
 
   channelManaging.value = true
   channelManageError.value = ''
@@ -609,7 +623,8 @@ async function submitAddChannelMembers() {
 }
 
 async function kickChannelMember(member: WorldMember) {
-  if (!selectedChannel.value || !canManageSelectedChannel.value) return
+  if (!selectedChannel.value || !canInviteSelectedChannelMembers.value) return
+  if (member.userId === selectedChannelCreatorId.value) return
   const confirmed = window.confirm(`确定要将 ${member.nickname || member.username} 移出频道吗？`)
   if (!confirmed) return
 
@@ -649,6 +664,25 @@ async function leaveSelectedChannel() {
   }
 }
 
+async function deleteSelectedChannel() {
+  if (!selectedChannel.value || !canManageSelectedChannel.value) return
+  const confirmed = window.confirm(`确定要解散频道「${selectedChannel.value.name}」吗？频道消息将不再可见。`)
+  if (!confirmed) return
+
+  channelActionKey.value = 'delete:channel'
+  channelManageError.value = ''
+  channelManageMessage.value = ''
+  try {
+    await deleteChannel(worldId.value, selectedChannel.value.channelId)
+    closeManagePanel()
+    removeSelectedChannelFromList()
+  } catch (error) {
+    channelManageError.value = error instanceof ApiError ? error.message : '解散频道失败'
+  } finally {
+    channelActionKey.value = ''
+  }
+}
+
 async function submitCreateChannel() {
   const name = createName.value.trim()
   if (!name) {
@@ -665,7 +699,12 @@ async function submitCreateChannel() {
       channelType,
       memberUserIds: channelType === 'private' ? selectedMemberIds.value : []
     })
-    channels.value = [...channels.value, created]
+    channels.value = [
+      ...channels.value,
+      created.creatorId || created.createdBy || created.ownerId
+        ? created
+        : { ...created, creatorId: authStore.currentUser?.userId }
+    ]
     selectedChannelId.value = created.channelId
     createPanelOpen.value = false
   } catch (error) {
@@ -777,18 +816,18 @@ onUnmounted(() => {
             {{ socketReady ? '实时在线' : '连接中' }}
           </span>
 
-          <RouterLink class="chat-header__action" :to="{ name: 'rpg-ocs', params: { worldId } }">
-            管理角色
-          </RouterLink>
-
           <button
-            v-if="selectedChannel?.channelType === 'private'"
+            v-if="canOpenChannelPanel"
             class="chat-header__action"
             type="button"
             @click="openManagePanel"
           >
             频道成员
           </button>
+
+          <RouterLink class="chat-header__action" :to="{ name: 'rpg-ocs', params: { worldId } }">
+            管理角色
+          </RouterLink>
 
           <div ref="identityRef" class="identity-switcher">
             <button
@@ -1054,7 +1093,7 @@ onUnmounted(() => {
                 <span class="member-name">{{ member.nickname || member.username }}</span>
                 <span class="member-role">{{ roleLabel(member.role) }}</span>
                 <button
-                  v-if="canManageSelectedChannel && member.userId !== authStore.currentUser?.userId"
+                  v-if="canInviteSelectedChannelMembers && member.userId !== selectedChannelCreatorId"
                   type="button"
                   class="tiny-danger-btn"
                   :disabled="Boolean(channelActionKey)"
@@ -1066,7 +1105,7 @@ onUnmounted(() => {
             </div>
           </div>
 
-          <div v-if="canManageSelectedChannel" class="member-picker">
+          <div v-if="canInviteSelectedChannelMembers" class="member-picker">
             <div class="member-picker__top">
               <span>邀请成员</span>
               <small>选择要加入此私密频道的世界成员</small>
@@ -1104,9 +1143,18 @@ onUnmounted(() => {
             >
               {{ channelActionKey === 'leave:self' ? '退出中...' : '退出频道' }}
             </button>
-            <button class="secondary-btn" type="button" @click="closeManagePanel">关闭</button>
             <button
               v-if="canManageSelectedChannel"
+              class="danger-outline-btn"
+              type="button"
+              :disabled="Boolean(channelActionKey)"
+              @click="deleteSelectedChannel"
+            >
+              {{ channelActionKey === 'delete:channel' ? '解散中...' : '解散频道' }}
+            </button>
+            <button class="secondary-btn" type="button" @click="closeManagePanel">关闭</button>
+            <button
+              v-if="canInviteSelectedChannelMembers"
               class="primary-btn"
               type="button"
               :disabled="channelManaging || channelAddMemberIds.length === 0"

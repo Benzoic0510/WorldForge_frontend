@@ -28,6 +28,9 @@ export interface RpgChannelResponse {
   name: string
   channelType: string
   memberUserIds: string[]
+  creatorId?: string
+  createdBy?: string
+  ownerId?: string
   createdAt: string
 }
 
