@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ApiError } from '@/api/http'
+import { buildWebSocketUrl as buildApiWebSocketUrl } from '@/api/websocket'
 import {
   deleteReadNotifications,
   listNotifications,
@@ -110,8 +111,7 @@ function formatDateTime(value: string): string {
 }
 
 function buildWebSocketUrl(): string {
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-  return `${protocol}//${window.location.host}/api/ws`
+  return buildApiWebSocketUrl().toString()
 }
 
 function parseNotificationLink(linkUrl: string) {

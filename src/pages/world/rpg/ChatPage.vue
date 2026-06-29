@@ -13,6 +13,7 @@ import {
   removeChannelMember
 } from '@/api/rpg'
 import { ApiError } from '@/api/http'
+import { buildWebSocketUrl as buildApiWebSocketUrl } from '@/api/websocket'
 import { getWorldDetail, listWorldMembers } from '@/api/world'
 import { useAuthStore } from '@/stores/auth'
 import { useClickOutside } from '@/composables/useClickOutside'
@@ -34,6 +35,7 @@ const selectedChannel = computed(() =>
 )
 const selectedChannelMemberIds = computed(() => selectedChannel.value?.memberUserIds ?? [])
 const selectedChannelCreatorId = computed(() =>
+  selectedChannel.value?.creatorUserId ||
   selectedChannel.value?.creatorId ||
   selectedChannel.value?.createdBy ||
   selectedChannel.value?.ownerId ||
@@ -225,8 +227,7 @@ function formatMessageTime(value: string) {
 }
 
 function buildWebSocketUrl() {
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-  const url = new URL(`${protocol}//${window.location.host}/api/ws`)
+  const url = buildApiWebSocketUrl()
   url.searchParams.set('worldId', worldId.value)
   return url.toString()
 }

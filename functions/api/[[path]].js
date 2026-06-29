@@ -1,8 +1,10 @@
-const DEFAULT_API_PROXY_TARGET = 'http://38.22.95.108.sslip.io:8080'
-
 export async function onRequest({ request, env, params }) {
-  const targetOrigin = resolveTargetOrigin(env.API_PROXY_TARGET || DEFAULT_API_PROXY_TARGET)
   const sourceUrl = new URL(request.url)
+  const configuredTarget = resolveConfiguredTarget(env, sourceUrl)
+  if (configuredTarget instanceof Response) {
+    return configuredTarget
+  }
+  const targetOrigin = resolveTargetOrigin(configuredTarget)
   const path = Array.isArray(params.path) ? params.path.join('/') : (params.path || '')
   const targetUrl = new URL(`${targetOrigin}/api/${path}`)
   targetUrl.search = sourceUrl.search
@@ -40,6 +42,30 @@ function proxyWebSocket(request, targetUrl) {
     method: request.method,
     headers
   })
+}
+
+function resolveConfiguredTarget(env, sourceUrl) {
+  const configured = env.API_PROXY_TARGET || env.VITE_API_PROXY_TARGET
+  if (configured) {
+    return configured
+  }
+
+  if (sourceUrl.hostname === 'localhost' || sourceUrl.hostname === '127.0.0.1') {
+    return 'http://localhost:8080'
+  }
+
+  return new Response(
+    JSON.stringify({
+      success: false,
+      code: 'API_PROXY_TARGET_MISSING',
+      message: 'Cloudflare Pages 环境变量 API_PROXY_TARGET 未配置',
+      data: null
+    }),
+    {
+      status: 500,
+      headers: { 'content-type': 'application/json; charset=utf-8' }
+    }
+  )
 }
 
 function resolveTargetOrigin(value) {
