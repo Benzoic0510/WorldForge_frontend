@@ -47,8 +47,66 @@ const entriesPage = ref(1)
 const entriesTotalPages = ref(0)
 const searchKeyword = ref('')
 const searchInput = ref('')
+const selectedEntryId = ref('')
+const displayedEntryId = ref('')
+const pendingEntryId = ref('')
+const displayedEntrySnapshot = ref<EntryPreviewItem | null>(null)
+const pendingEntrySnapshot = ref<EntryPreviewItem | null>(null)
+const isBookTurning = ref(false)
+const bookTurnKey = ref(0)
+const bookTurnDirection = ref<'forward' | 'backward'>('forward')
+const bookTurnDistance = ref(1)
+let bookTurnTimer: ReturnType<typeof window.setTimeout> | null = null
+const BOOK_TURN_TOTAL_DURATION = 460
+const BOOK_TURN_PAGE_DURATION = 360
+const BOOK_TURN_FALLBACK_DELAY = BOOK_TURN_TOTAL_DURATION + 120
 const hasSearchKeyword = computed(() => searchKeyword.value.length > 0)
 const canLoadMoreEntries = computed(() => entriesPage.value < entriesTotalPages.value)
+const displayedEntry = computed(() =>
+  entries.value.find(entry => entry.entryId === displayedEntryId.value)
+  ?? (displayedEntrySnapshot.value?.entryId === displayedEntryId.value ? displayedEntrySnapshot.value : null)
+)
+const pendingEntry = computed(() =>
+  entries.value.find(entry => entry.entryId === pendingEntryId.value)
+  ?? (pendingEntrySnapshot.value?.entryId === pendingEntryId.value ? pendingEntrySnapshot.value : null)
+)
+const bookEntry = computed(() => displayedEntry.value ?? pendingEntry.value)
+const displayedEntryIndex = computed(() =>
+  displayedEntry.value ? entries.value.findIndex(entry => entry.entryId === displayedEntry.value?.entryId) : -1
+)
+const pendingEntryIndex = computed(() =>
+  pendingEntry.value ? entries.value.findIndex(entry => entry.entryId === pendingEntry.value?.entryId) : -1
+)
+const displayedEntryLabel = computed(() =>
+  displayedEntryIndex.value >= 0 ? `Entry ${displayedEntryIndex.value + 1}` : 'Entry'
+)
+const pendingEntryLabel = computed(() =>
+  pendingEntryIndex.value >= 0 ? `Entry ${pendingEntryIndex.value + 1}` : 'Entry'
+)
+const bookTurnPages = computed(() => {
+  const count = Math.min(bookTurnDistance.value, 10)
+  const totalDuration = BOOK_TURN_TOTAL_DURATION
+  const pageDuration = count === 1 ? totalDuration : BOOK_TURN_PAGE_DURATION
+  const delayStep = count === 1 ? 0 : (totalDuration - pageDuration) / (count - 1)
+
+  return Array.from({ length: count }, (_, index) => {
+    const isSpacer = index !== 0 && index !== count - 1
+    const delay = index * delayStep
+
+    return {
+      index,
+      isSpacer,
+      isLast: index === count - 1,
+      style: {
+        '--page-delay': `${Math.round(delay)}ms`,
+        '--page-duration': `${Math.round(pageDuration)}ms`,
+        '--page-z': `${count - index}px`,
+        '--page-arc': `${18 + Math.min(count, 6) * 2 - index}px`,
+        '--page-shadow': `${0.14 - index * 0.008}`
+      }
+    }
+  })
+})
 
 // ── Graph ──
 const graphData = ref<PushGraphData | null>(null)
@@ -197,18 +255,97 @@ async function loadWorld() {
 }
 
 // ── Entries ──
-function formatDate(value: string) {
+function formatEntryDate(value: string) {
   return new Date(value).toLocaleString('zh-CN')
 }
 
 function buildEntryPreview(content: string): string {
-  const trimmed = content.trim()
-  if (trimmed.length <= 360) return trimmed
-  return `${trimmed.slice(0, 360).trimEnd()}...`
+  return content.trim()
 }
 
-function getEntryPreview(entry: EntryPreviewItem): string {
-  return entry.contentPreview || entry.summary || '暂无摘要。'
+function getEntryContent(entry: EntryPreviewItem): string {
+  return entry.contentPreview || entry.summary || '暂无正文内容。'
+}
+
+function getTurningExcerpt(entry: EntryPreviewItem | null): string {
+  if (!entry) return ''
+  const content = getEntryContent(entry).replace(/\s+/g, ' ').trim()
+  if (content.length <= 120) return content
+  return `${content.slice(0, 120).trimEnd()}...`
+}
+
+function trapEntryIndexWheel(event: WheelEvent) {
+  const scroller = event.currentTarget as HTMLElement | null
+  if (!scroller || event.deltaY === 0) return
+
+  event.preventDefault()
+  event.stopPropagation()
+
+  const delta =
+    event.deltaMode === WheelEvent.DOM_DELTA_LINE
+      ? event.deltaY * 32
+      : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+        ? event.deltaY * scroller.clientHeight
+        : event.deltaY
+
+  scroller.scrollTop += delta
+}
+
+function selectEntry(entry: EntryPreviewItem, index: number) {
+  if (isBookTurning.value) return
+
+  const currentIndex = entries.value.findIndex(item => item.entryId === displayedEntryId.value)
+  if (currentIndex === index) return
+
+  selectedEntryId.value = entry.entryId
+
+  if (!displayedEntryId.value || currentIndex < 0) {
+    displayedEntryId.value = entry.entryId
+    displayedEntrySnapshot.value = entry
+    pendingEntryId.value = ''
+    pendingEntrySnapshot.value = null
+    isBookTurning.value = false
+    bookTurnKey.value += 1
+    return
+  }
+
+  if (bookTurnTimer) {
+    clearTimeout(bookTurnTimer)
+    bookTurnTimer = null
+  }
+  pendingEntryId.value = entry.entryId
+  pendingEntrySnapshot.value = entry
+  bookTurnDistance.value = Math.max(1, Math.abs(index - currentIndex))
+  bookTurnDirection.value = index < currentIndex ? 'backward' : 'forward'
+  isBookTurning.value = true
+  bookTurnKey.value += 1
+
+  bookTurnTimer = window.setTimeout(() => {
+    completeBookTurn()
+  }, BOOK_TURN_FALLBACK_DELAY)
+}
+
+function completeBookTurn() {
+  if (!isBookTurning.value || !pendingEntryId.value) return
+
+  if (bookTurnTimer) {
+    clearTimeout(bookTurnTimer)
+    bookTurnTimer = null
+  }
+
+  const settledEntryId = pendingEntryId.value
+  const settledEntry = pendingEntry.value
+  displayedEntryId.value = settledEntryId
+  displayedEntrySnapshot.value = settledEntry
+  pendingEntryId.value = ''
+  pendingEntrySnapshot.value = null
+  isBookTurning.value = false
+}
+
+function handleBookTurnAnimationEnd(pageIndex: number) {
+  if (!isBookTurning.value || pageIndex !== bookTurnPages.value.length - 1) return
+
+  completeBookTurn()
 }
 
 async function hydrateEntryPreviews(items: EntryListItem[]): Promise<EntryPreviewItem[]> {
@@ -248,6 +385,12 @@ async function fetchEntries(options: { append?: boolean } = {}) {
 
     const hydratedItems = await hydrateEntryPreviews(data.items)
     entries.value = append ? entries.value.concat(hydratedItems) : hydratedItems
+    if (!append) {
+      const refreshedDisplayedEntry = hydratedItems.find(entry => entry.entryId === displayedEntryId.value)
+      const refreshedPendingEntry = hydratedItems.find(entry => entry.entryId === pendingEntryId.value)
+      if (refreshedDisplayedEntry) displayedEntrySnapshot.value = refreshedDisplayedEntry
+      if (refreshedPendingEntry) pendingEntrySnapshot.value = refreshedPendingEntry
+    }
     entriesTotalPages.value = data.totalPages
     entriesError.value = ''
     entriesAppendError.value = ''
@@ -790,6 +933,7 @@ onUnmounted(() => {
   destroyNetwork()
   document.removeEventListener('keydown', handleKeydown)
   if (toastTimer.value) clearTimeout(toastTimer.value)
+  if (bookTurnTimer) clearTimeout(bookTurnTimer)
 })
 </script>
 
@@ -922,65 +1066,233 @@ onUnmounted(() => {
           </div>
         </form>
 
-        <div v-if="entriesLoading" class="studio-state">
-          <p>正在整理词条目录...</p>
-        </div>
-
-        <div v-else-if="entriesError" class="studio-state studio-state--error">
-          <h2>词条列表暂时不可用</h2>
-          <p>{{ entriesError }}</p>
-          <button type="button" class="studio-action studio-action--primary" @click="reloadEntries">
-            重新加载
-          </button>
-        </div>
-
-        <div v-else-if="entries.length === 0" class="studio-state studio-state--empty">
-          <h2>{{ hasSearchKeyword ? '没有匹配词条' : '还没有词条' }}</h2>
-          <p>
-            {{
-              hasSearchKeyword
-                ? `没有找到包含"${searchKeyword}"的词条，可以换一个关键词再试。`
-                : '这个世界还没有设定词条，可以先创建第一条核心档案。'
-            }}
-          </p>
-          <button
-            v-if="canEditWorld && !hasSearchKeyword"
-            type="button"
-            class="studio-action studio-action--primary"
-            @click="openCreateEntryModal"
-          >
-            新建词条
-          </button>
-        </div>
-
-        <div v-else class="entry-grid">
-          <RouterLink
-            v-for="entry in entries"
-            :key="entry.entryId"
-            class="entry-card"
-            :to="{
-              name: 'entry-detail',
-              params: { worldId: entry.worldId, entryId: entry.entryId }
-            }"
-          >
-            <div class="entry-card__meta">
-              <span>{{ formatDate(entry.updatedAt) }}</span>
-              <strong>打开档案</strong>
+        <div class="entry-book-layout">
+          <aside class="entry-book-index" aria-label="词条目录" @wheel="trapEntryIndexWheel">
+            <div v-if="entriesLoading" class="entry-index-state" role="status">
+              <p>正在整理词条目录...</p>
             </div>
-            <h2>{{ entry.title }}</h2>
-            <p>{{ getEntryPreview(entry) }}</p>
-            <div class="tag-list" aria-label="标签">
-              <span v-for="tag in entry.tags" :key="tag">{{ tag }}</span>
+
+            <div v-else-if="entriesError" class="entry-index-state entry-index-state--error" role="status">
+              <strong>词条列表暂时不可用</strong>
+              <p>{{ entriesError }}</p>
+              <button type="button" class="studio-action studio-action--primary" @click="reloadEntries">
+                重新加载
+              </button>
             </div>
-          </RouterLink>
+
+            <div v-else-if="entries.length === 0" class="entry-index-state entry-index-state--empty">
+              <strong>{{ hasSearchKeyword ? '没有匹配词条' : '还没有词条' }}</strong>
+              <p>
+                {{
+                  hasSearchKeyword
+                    ? `没有找到包含"${searchKeyword}"的词条，可以换一个关键词再试。`
+                    : '这个世界还没有设定词条，可以先创建第一条核心档案。'
+                }}
+              </p>
+              <button
+                v-if="canEditWorld && !hasSearchKeyword"
+                type="button"
+                class="studio-action studio-action--primary"
+                @click="openCreateEntryModal"
+              >
+                新建词条
+              </button>
+            </div>
+
+            <template v-else>
+              <button
+                v-for="(entry, index) in entries"
+                :key="entry.entryId"
+                type="button"
+                class="entry-index-item"
+                :class="{ 'entry-index-item--active': selectedEntryId === entry.entryId }"
+                :aria-pressed="selectedEntryId === entry.entryId"
+                :disabled="isBookTurning"
+                @click="selectEntry(entry, index)"
+              >
+                <span class="entry-index-item__title">{{ entry.title }}</span>
+                <span class="entry-index-item__date">{{ formatEntryDate(entry.updatedAt) }}</span>
+                <span v-if="entry.tags.length > 0" class="entry-index-item__tags">
+                  <span v-for="tag in entry.tags.slice(0, 3)" :key="tag">{{ tag }}</span>
+                </span>
+              </button>
+            </template>
+          </aside>
+
+          <section class="entry-book-stage" aria-live="polite">
+            <div v-if="!bookEntry" class="entry-closed-book">
+              <div class="entry-closed-book__cover">
+                <span>WorldForge</span>
+                <strong>词条典藏</strong>
+                <small>从左侧选择词条翻阅</small>
+              </div>
+              <div class="entry-closed-book__pages" aria-hidden="true"></div>
+            </div>
+
+            <div
+              v-else
+              class="entry-open-book"
+              :class="[
+                `entry-open-book--${bookTurnDirection}`,
+                { 'entry-open-book--turning': isBookTurning }
+              ]"
+            >
+              <div v-if="pendingEntry && isBookTurning" class="entry-book-spread entry-book-spread--target">
+                <article class="entry-book-page entry-book-page--left">
+                  <p class="entry-book-page__eyebrow">{{ pendingEntryLabel }}</p>
+                  <h2>{{ pendingEntry.title }}</h2>
+                  <dl class="entry-book-meta">
+                    <div>
+                      <dt>更新时间</dt>
+                      <dd>{{ formatEntryDate(pendingEntry.updatedAt) }}</dd>
+                    </div>
+                    <div>
+                      <dt>词条编号</dt>
+                      <dd>{{ pendingEntry.entryId }}</dd>
+                    </div>
+                  </dl>
+                  <div v-if="pendingEntry.tags.length > 0" class="entry-book-tags" aria-label="标签">
+                    <span v-for="tag in pendingEntry.tags" :key="tag">{{ tag }}</span>
+                  </div>
+                </article>
+
+                <article class="entry-book-page entry-book-page--right">
+                  <p class="entry-book-page__eyebrow">Content</p>
+                  <div class="entry-book-content">
+                    <p>{{ getEntryContent(pendingEntry) }}</p>
+                  </div>
+                </article>
+              </div>
+
+              <div v-if="displayedEntry || bookEntry" class="entry-book-spread entry-book-spread--current">
+                <article
+                  class="entry-book-page entry-book-page--left"
+                  :class="{ 'entry-book-page--turning-side-hidden': isBookTurning && bookTurnDirection === 'backward' }"
+                >
+                  <p class="entry-book-page__eyebrow">{{ displayedEntryLabel }}</p>
+                  <h2>{{ (displayedEntry || bookEntry)?.title }}</h2>
+                  <dl class="entry-book-meta">
+                    <div>
+                      <dt>更新时间</dt>
+                      <dd>{{ formatEntryDate((displayedEntry || bookEntry)!.updatedAt) }}</dd>
+                    </div>
+                    <div>
+                      <dt>词条编号</dt>
+                      <dd>{{ (displayedEntry || bookEntry)?.entryId }}</dd>
+                    </div>
+                  </dl>
+                  <div v-if="(displayedEntry || bookEntry)!.tags.length > 0" class="entry-book-tags" aria-label="标签">
+                    <span v-for="tag in (displayedEntry || bookEntry)!.tags" :key="tag">{{ tag }}</span>
+                  </div>
+                </article>
+
+                <article
+                  class="entry-book-page entry-book-page--right"
+                  :class="{ 'entry-book-page--turning-side-hidden': isBookTurning && bookTurnDirection === 'forward' }"
+                >
+                  <p class="entry-book-page__eyebrow">Content</p>
+                  <div class="entry-book-content">
+                    <p>{{ getEntryContent((displayedEntry || bookEntry)!) }}</p>
+                  </div>
+                </article>
+              </div>
+
+              <div
+                v-if="isBookTurning && displayedEntry && pendingEntry"
+                :key="bookTurnKey"
+                class="entry-turning-stack"
+                aria-hidden="true"
+              >
+                <div
+                  v-for="page in bookTurnPages"
+                  :key="page.index"
+                  class="entry-turning-sheet"
+                  :class="{ 'entry-turning-sheet--blank': page.isSpacer }"
+                  :style="page.style"
+                  @animationend.self="handleBookTurnAnimationEnd(page.index)"
+                >
+                  <div class="entry-turning-sheet__face entry-turning-sheet__face--front">
+                    <article
+                      class="entry-book-page entry-turning-sheet__page"
+                      :class="[
+                        bookTurnDirection === 'backward' ? 'entry-book-page--left' : 'entry-book-page--right',
+                        { 'entry-turning-sheet__page--blank': page.index !== 0 }
+                      ]"
+                    >
+                      <template v-if="page.index === 0">
+                        <template v-if="bookTurnDirection === 'backward'">
+                          <p class="entry-book-page__eyebrow">{{ displayedEntryLabel }}</p>
+                          <h2>{{ displayedEntry.title }}</h2>
+                          <dl class="entry-book-meta">
+                            <div>
+                              <dt>更新时间</dt>
+                              <dd>{{ formatEntryDate(displayedEntry.updatedAt) }}</dd>
+                            </div>
+                            <div>
+                              <dt>词条编号</dt>
+                              <dd>{{ displayedEntry.entryId }}</dd>
+                            </div>
+                          </dl>
+                          <div v-if="displayedEntry.tags.length > 0" class="entry-book-tags" aria-label="标签">
+                            <span v-for="tag in displayedEntry.tags" :key="tag">{{ tag }}</span>
+                          </div>
+                        </template>
+                        <template v-else>
+                          <p class="entry-book-page__eyebrow">Content</p>
+                          <div class="entry-book-content">
+                            <p>{{ getEntryContent(displayedEntry) }}</p>
+                          </div>
+                        </template>
+                      </template>
+                    </article>
+                  </div>
+                  <div class="entry-turning-sheet__face entry-turning-sheet__face--back">
+                    <article
+                      class="entry-book-page entry-turning-sheet__page"
+                      :class="[
+                        bookTurnDirection === 'backward' ? 'entry-book-page--right' : 'entry-book-page--left',
+                        { 'entry-turning-sheet__page--blank': page.index !== bookTurnPages.length - 1 }
+                      ]"
+                    >
+                      <template v-if="page.index === bookTurnPages.length - 1">
+                        <template v-if="bookTurnDirection === 'forward'">
+                          <p class="entry-book-page__eyebrow">{{ pendingEntryLabel }}</p>
+                          <h2>{{ pendingEntry.title }}</h2>
+                          <dl class="entry-book-meta">
+                            <div>
+                              <dt>更新时间</dt>
+                              <dd>{{ formatEntryDate(pendingEntry.updatedAt) }}</dd>
+                            </div>
+                            <div>
+                              <dt>词条编号</dt>
+                              <dd>{{ pendingEntry.entryId }}</dd>
+                            </div>
+                          </dl>
+                          <div v-if="pendingEntry.tags.length > 0" class="entry-book-tags" aria-label="标签">
+                            <span v-for="tag in pendingEntry.tags" :key="tag">{{ tag }}</span>
+                          </div>
+                        </template>
+                        <template v-else>
+                          <p class="entry-book-page__eyebrow">Content</p>
+                          <div class="entry-book-content">
+                            <p>{{ getEntryContent(pendingEntry) }}</p>
+                          </div>
+                        </template>
+                      </template>
+                    </article>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
         </div>
 
-        <div v-if="entriesAppendError" class="append-error-row" role="status">
+        <div v-if="entriesAppendError && !entriesLoading" class="append-error-row" role="status">
           <span>{{ entriesAppendError }}</span>
           <button type="button" @click="loadMoreEntries">再试一次</button>
         </div>
 
-        <div v-if="canLoadMoreEntries" class="load-more-row">
+        <div v-if="canLoadMoreEntries && !entriesLoading" class="load-more-row">
           <button
             type="button"
             class="studio-action studio-action--primary"
@@ -1607,86 +1919,532 @@ onUnmounted(() => {
   opacity: 0.5;
 }
 
-/* Entry grid */
-.entry-grid {
+/* Entry book */
+.entry-book-layout {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
+  grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
+  gap: 22px;
+  align-items: start;
 }
 
-.entry-card {
+.entry-book-index {
   display: grid;
+  gap: 8px;
+  max-height: min(72vh, 760px);
+  padding: 2px 10px 2px 2px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+
+.entry-book-index::-webkit-scrollbar {
+  display: none;
+}
+
+.entry-index-state {
+  display: grid;
+  align-content: start;
   gap: 12px;
-  min-height: 220px;
+  min-height: 180px;
   padding: 18px;
   border: 1px solid rgb(16 59 49 / 12%);
+  border-left: 4px solid rgb(69 148 122 / 70%);
   border-radius: 8px;
-  background:
-    linear-gradient(180deg, rgb(255 255 255 / 68%), rgb(244 240 231 / 86%)),
-    rgb(255 255 255 / 56%);
-  box-shadow: var(--shadow-panel);
-  text-decoration: none;
-  transition:
-    border-color 160ms ease,
-    transform 160ms ease,
-    box-shadow 160ms ease;
-}
-
-.entry-card:hover {
-  border-color: rgb(20 115 90 / 34%);
-  transform: translateY(-2px);
-  box-shadow: 0 18px 40px rgb(24 33 31 / 10%);
-}
-
-.entry-card__meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
   color: var(--color-muted);
-  font-size: 0.82rem;
+  background: rgb(255 255 255 / 64%);
+  box-shadow: 0 8px 20px rgb(24 33 31 / 5%);
+}
+
+.entry-index-state strong {
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  font-size: 1.08rem;
+  line-height: 1.2;
+}
+
+.entry-index-state p {
+  margin: 0;
+  line-height: 1.7;
+}
+
+.entry-index-state--error {
+  border-left-color: #b15f4a;
+  background: rgb(255 244 238 / 78%);
+}
+
+.entry-index-state--empty {
+  border-left-color: rgb(111 91 55 / 44%);
+}
+
+.entry-index-item {
+  display: grid;
+  gap: 7px;
+  width: calc(100% - 8px);
+  padding: 13px 14px 13px 18px;
+  border: 1px solid rgb(16 59 49 / 12%);
+  border-left: 4px solid rgb(69 148 122 / 70%);
+  border-radius: 8px;
+  color: var(--color-ink);
+  background: rgb(255 255 255 / 62%);
+  box-shadow: 0 8px 20px rgb(24 33 31 / 5%);
+  text-align: left;
+  cursor: pointer;
+  will-change: transform;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.entry-index-item:not(:disabled):hover,
+.entry-index-item:not(:disabled):focus-visible {
+  border-color: rgb(69 148 122 / 34%);
+  background: rgb(255 255 251 / 88%);
+  box-shadow: 0 14px 26px rgb(24 33 31 / 8%);
+  transform: translate3d(6px, 0, 0);
+  outline: none;
+}
+
+.entry-index-item:disabled {
+  cursor: wait;
+}
+
+.entry-index-item--active {
+  border-color: rgb(16 59 49 / 34%);
+  border-left-color: #103b31;
+  background: rgb(231 241 236 / 84%);
+}
+
+.entry-index-item__title {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 900;
+  line-height: 1.18;
+  overflow-wrap: anywhere;
+}
+
+.entry-index-item__date {
+  color: var(--color-muted);
+  font-size: 0.78rem;
   font-weight: 800;
 }
 
-.entry-card__meta strong {
-  color: var(--color-accent);
-  white-space: nowrap;
-}
-
-.entry-card h2 {
-  margin: 0;
-  color: var(--color-ink);
-  font-family: var(--font-display);
-  font-size: 1.45rem;
-  line-height: 1.2;
-  overflow-wrap: anywhere;
-}
-
-.entry-card p {
-  margin: 0;
-  color: var(--color-muted);
-  line-height: 1.75;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
-.tag-list {
+.entry-index-item__tags,
+.entry-book-tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
 }
 
-.tag-list span {
+.entry-index-item__tags span,
+.entry-book-tags span {
   display: inline-flex;
   align-items: center;
-  min-height: 28px;
-  padding: 0 10px;
-  border: 1px solid var(--color-line);
-  border-radius: 999px;
+  min-height: 24px;
+  padding: 0 8px;
+  border: 1px solid rgb(79 151 128 / 22%);
+  border-radius: 7px;
   color: #305349;
-  background: rgb(232 241 237 / 62%);
+  background: rgb(255 255 255 / 65%);
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.entry-book-stage {
+  min-height: 520px;
+  perspective: 1800px;
+}
+
+.entry-closed-book {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 520px;
+}
+
+.entry-closed-book__cover {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 14px;
+  width: min(430px, 78%);
+  min-height: 440px;
+  padding: 46px;
+  border: 1px solid rgb(12 42 36 / 24%);
+  border-radius: 8px 16px 16px 8px;
+  color: #f8f1df;
+  background:
+    linear-gradient(90deg, rgb(13 51 43), rgb(24 82 67) 58%, rgb(34 99 80)),
+    #103b31;
+  box-shadow:
+    0 30px 70px rgb(24 33 31 / 20%),
+    inset 18px 0 24px rgb(0 0 0 / 16%);
+}
+
+.entry-closed-book__cover::before {
+  position: absolute;
+  top: 24px;
+  bottom: 24px;
+  left: 42px;
+  width: 1px;
+  background: rgb(248 241 223 / 24%);
+  content: '';
+}
+
+.entry-closed-book__cover span {
   font-size: 0.82rem;
-  font-weight: 700;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.entry-closed-book__cover strong {
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 3vw, 3.1rem);
+  line-height: 1.05;
+}
+
+.entry-closed-book__cover small {
+  color: rgb(248 241 223 / 76%);
+  font-weight: 800;
+}
+
+.entry-closed-book__pages {
+  position: absolute;
+  width: min(430px, 78%);
+  min-height: 430px;
+  border-radius: 8px 16px 16px 8px;
+  background: repeating-linear-gradient(180deg, #f7f0df 0 5px, #e8ddc6 5px 7px);
+  transform: translate(14px, 11px);
+  box-shadow: 0 22px 40px rgb(24 33 31 / 12%);
+}
+
+.entry-open-book {
+  position: relative;
+  min-height: 520px;
+  border-radius: 8px;
+  transform-style: preserve-3d;
+  filter: drop-shadow(0 28px 60px rgb(24 33 31 / 14%));
+  animation: book-settle 560ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.entry-open-book::before {
+  position: absolute;
+  top: 22px;
+  bottom: 22px;
+  left: 50%;
+  z-index: 6;
+  width: 3px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgb(87 68 39 / 10%), rgb(66 52 31 / 16%) 52%, rgb(255 255 255 / 14%));
+  opacity: 0.78;
+  transform: translateX(-50%);
+  content: '';
+  pointer-events: none;
+}
+
+.entry-book-spread {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  min-height: 520px;
+  transform-style: preserve-3d;
+}
+
+.entry-book-spread--target {
+  z-index: 1;
+}
+
+.entry-book-spread--current {
+  z-index: 2;
+  backface-visibility: hidden;
+  transform: translateZ(0);
+}
+
+.entry-book-page {
+  display: grid;
+  align-content: start;
+  gap: 18px;
+  min-height: 520px;
+  padding: 42px 44px;
+  border: 1px solid rgb(111 91 55 / 18%);
+  color: #263631;
+  background:
+    linear-gradient(90deg, rgb(255 255 255 / 42%), transparent 18%),
+    repeating-linear-gradient(180deg, rgb(255 252 243 / 94%) 0 34px, rgb(237 226 204 / 30%) 35px 36px),
+    #fbf6e8;
+  overflow: hidden;
+}
+
+.entry-book-page--left {
+  border-radius: 10px 3px 3px 10px;
+  box-shadow: inset -20px 0 30px rgb(84 66 36 / 9%);
+}
+
+.entry-book-page--right {
+  border-radius: 3px 10px 10px 3px;
+  box-shadow: inset 20px 0 30px rgb(84 66 36 / 8%);
+}
+
+.entry-book-page__eyebrow {
+  margin: 0;
+  color: rgb(86 107 100);
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.entry-book-page h2 {
+  margin: 0;
+  color: #17241f;
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 3vw, 3.3rem);
+  line-height: 1.08;
+  overflow-wrap: anywhere;
+}
+
+.entry-book-meta {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+}
+
+.entry-book-meta div {
+  display: grid;
+  gap: 4px;
+}
+
+.entry-book-meta dt {
+  color: rgb(88 102 97);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.entry-book-meta dd {
+  margin: 0;
+  color: #273c35;
+  font-size: 0.92rem;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.entry-book-content {
+  max-height: 410px;
+  padding-right: 6px;
+  overflow: auto;
+}
+
+.entry-book-content p {
+  margin: 0;
+  color: #31423c;
+  font-size: 1rem;
+  line-height: 1.9;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.entry-book-page--turning-side-hidden {
+  visibility: hidden;
+}
+
+.entry-turning-stack {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  z-index: 5;
+  width: 50%;
+  pointer-events: none;
+  transform-style: preserve-3d;
+}
+
+.entry-turning-sheet {
+  position: absolute;
+  inset: 0;
+  border-radius: 3px 10px 10px 3px;
+  box-shadow: -8px 0 16px rgb(67 54 35 / var(--page-shadow));
+  transform: translateZ(var(--page-z)) rotateY(0deg);
+  transform-origin: left center;
+  transform-style: preserve-3d;
+  animation: page-turn-forward var(--page-duration) linear var(--page-delay) both;
+  backface-visibility: hidden;
+  will-change: transform;
+}
+
+.entry-turning-sheet--blank {
+  box-shadow: -5px 0 10px rgb(67 54 35 / 6%);
+  animation-name: page-turn-forward-spacer;
+}
+
+.entry-turning-sheet::before {
+  display: none;
+}
+
+.entry-turning-sheet::after {
+  display: none;
+}
+
+.entry-turning-sheet__face {
+  position: absolute;
+  inset: 0;
+  display: block;
+  border-radius: inherit;
+  backface-visibility: hidden;
+  transform-style: preserve-3d;
+}
+
+.entry-turning-sheet__face--back {
+  transform: rotateY(180deg);
+}
+
+.entry-turning-sheet__page {
+  position: absolute;
+  inset: 0;
+  min-height: 520px;
+}
+
+.entry-turning-sheet__page--blank {
+  position: relative;
+  padding: 0;
+  background:
+    linear-gradient(90deg, rgb(255 255 255 / 46%), transparent 18%),
+    repeating-linear-gradient(180deg, rgb(255 252 243) 0 34px, rgb(237 226 204 / 42%) 35px 36px),
+    #fbf6e8;
+}
+
+.entry-turning-sheet__page--blank::before,
+.entry-turning-sheet__page--blank::after {
+  position: absolute;
+  content: '';
+  pointer-events: none;
+}
+
+.entry-turning-sheet__page--blank::before {
+  inset: 42px 44px;
+  opacity: 0.2;
+  filter: blur(0.2px);
+}
+
+.entry-turning-sheet__page--blank.entry-book-page--left::before {
+  background:
+    linear-gradient(rgb(38 54 49 / 46%) 0 0) 0 0 / 58% 20px no-repeat,
+    linear-gradient(rgb(38 54 49 / 28%) 0 0) 0 56px / 38% 12px no-repeat,
+    linear-gradient(rgb(38 54 49 / 24%) 0 0) 0 84px / 66% 10px no-repeat,
+    radial-gradient(circle, rgb(47 83 72 / 38%) 0 46%, transparent 48%) 0 132px / 18px 18px no-repeat,
+    radial-gradient(circle, rgb(47 83 72 / 32%) 0 46%, transparent 48%) 28px 132px / 18px 18px no-repeat,
+    radial-gradient(circle, rgb(47 83 72 / 28%) 0 46%, transparent 48%) 56px 132px / 18px 18px no-repeat,
+    repeating-linear-gradient(180deg, transparent 0 24px, rgb(49 66 60 / 22%) 24px 26px, transparent 26px 36px);
+}
+
+.entry-turning-sheet__page--blank.entry-book-page--right::before {
+  background:
+    linear-gradient(rgb(38 54 49 / 28%) 0 0) 0 0 / 30% 12px no-repeat,
+    repeating-linear-gradient(180deg, rgb(49 66 60 / 34%) 0 2px, transparent 2px 18px);
+}
+
+.entry-turning-sheet__page--blank::after {
+  inset: 0;
+  border-radius: inherit;
+  background:
+    linear-gradient(90deg, rgb(255 255 255 / 28%), transparent 20%),
+    radial-gradient(circle at 72% 18%, rgb(120 95 55 / 8%), transparent 30%);
+}
+
+.entry-open-book--backward .entry-turning-stack {
+  left: 0;
+}
+
+.entry-open-book--backward .entry-turning-sheet {
+  border-right-color: rgb(78 58 34 / 22%);
+  border-left-color: rgb(120 95 55 / 16%);
+  border-radius: 10px 3px 3px 10px;
+  box-shadow: 8px 0 16px rgb(67 54 35 / var(--page-shadow));
+  transform-origin: right center;
+  animation-name: page-turn-backward;
+}
+
+.entry-open-book--backward .entry-turning-sheet--blank {
+  box-shadow: 5px 0 10px rgb(67 54 35 / 6%);
+  animation-name: page-turn-backward-spacer;
+}
+
+.entry-open-book--backward .entry-turning-sheet::before {
+  display: none;
+}
+
+.entry-open-book--backward .entry-turning-sheet::after {
+  display: none;
+}
+
+@keyframes page-turn-forward {
+  0% {
+    transform: translateZ(var(--page-z)) rotateY(0deg);
+  }
+  50% {
+    transform: translateZ(var(--page-arc)) rotateY(-90deg);
+  }
+  100% {
+    transform: translateZ(0) rotateY(-178deg);
+  }
+}
+
+@keyframes page-turn-forward-spacer {
+  0% {
+    opacity: 1;
+    transform: translateZ(var(--page-z)) rotateY(0deg);
+  }
+  50% {
+    opacity: 1;
+    transform: translateZ(var(--page-arc)) rotateY(-90deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translateZ(0) rotateY(-170deg);
+  }
+}
+
+@keyframes page-turn-backward {
+  0% {
+    transform: translateZ(var(--page-z)) rotateY(0deg);
+  }
+  50% {
+    transform: translateZ(var(--page-arc)) rotateY(90deg);
+  }
+  100% {
+    transform: translateZ(0) rotateY(178deg);
+  }
+}
+
+@keyframes page-turn-backward-spacer {
+  0% {
+    opacity: 1;
+    transform: translateZ(var(--page-z)) rotateY(0deg);
+  }
+  50% {
+    opacity: 1;
+    transform: translateZ(var(--page-arc)) rotateY(90deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translateZ(0) rotateY(170deg);
+  }
+}
+
+@keyframes book-settle {
+  0% {
+    opacity: 0.82;
+    transform: translateY(8px) rotateX(2deg);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) rotateX(0deg);
+  }
 }
 
 .load-more-row {
@@ -1889,8 +2647,14 @@ onUnmounted(() => {
 
 /* Responsive */
 @media (max-width: 1040px) {
-  .entry-grid {
+  .entry-book-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .entry-book-index {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-height: none;
+    overflow: visible;
   }
 }
 
@@ -1899,8 +2663,34 @@ onUnmounted(() => {
     padding-block: 18px 40px;
   }
 
-  .entry-grid {
+  .entry-book-index,
+  .entry-open-book {
     grid-template-columns: 1fr;
+  }
+
+  .entry-book-stage,
+  .entry-closed-book,
+  .entry-open-book,
+  .entry-book-page {
+    min-height: auto;
+  }
+
+  .entry-book-page {
+    padding: 28px 24px;
+  }
+
+  .entry-open-book::before,
+  .entry-turning-stack {
+    display: none;
+  }
+
+  .entry-book-page--left,
+  .entry-book-page--right {
+    border-radius: 8px;
+  }
+
+  .entry-book-content {
+    max-height: 46vh;
   }
 
   .studio-header {

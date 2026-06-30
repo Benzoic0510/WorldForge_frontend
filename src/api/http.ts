@@ -86,7 +86,27 @@ const EXACT_ERROR_MESSAGE_MAP: Record<string, string> = {
   'World can have at most 10 tags': '世界标签最多 10 个',
   'Each tag must be at most 20 characters': '每个标签不能超过 20 个字符',
   'worldId is required': '缺少世界 ID，请刷新页面后重试',
-  'notificationId 不能为空': '缺少通知 ID，请刷新页面后重试'
+  'notificationId 不能为空': '缺少通知 ID，请刷新页面后重试',
+
+  // ─── 新增：RPG 频道管理错误 ──────────────────────────────
+  'Only channel creator can manage channel members': '只有频道创建者才能管理频道成员',
+  'Public channels do not have explicit members': '公开频道不支持显式成员管理',
+  'Channel delete failed': '频道删除失败，请稍后重试',
+  'Channel creator cannot leave; delete the channel instead': '频道创建者不能退出，请直接解散频道',
+  'memberUserIds or userId is required': '请选择要添加的成员',
+
+  // ─── 新增：世界成员管理错误 ──────────────────────────────
+  'Only creator can change member roles': '只有创建者才能修改成员角色',
+  'Creator role cannot be changed': '创建者的角色不能被修改',
+  'Member role update failed': '成员角色更新失败，请稍后重试',
+  'Member not found': '该成员已不在当前世界中',
+  'Only world managers can remove members': '只有世界管理者才能移除成员',
+  'Creator cannot be removed': '创建者不能被移出世界',
+  'Only creator can remove co_admin': '只有创建者才能移除共同管理员',
+  'Creator cannot leave the world': '创建者不能退出世界，请直接删除世界',
+  'Use leave world API to remove yourself': '你不能移除自己，请使用退出功能',
+  'Leave world failed': '退出世界失败，请稍后重试',
+  'Member remove failed': '移除成员失败，请稍后重试',
 }
 
 const CODE_ERROR_MESSAGE_MAP: Record<string, string> = {

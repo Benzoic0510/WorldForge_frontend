@@ -190,6 +190,7 @@ async function loadAll() {
 }
 
 async function switchTab(tab: MembersTab) {
+  successMessage.value = ''
   activeTab.value = tab
   if (tab === 'requests' && requests.value.length === 0 && !requestsLoading.value) {
     await loadRequests()

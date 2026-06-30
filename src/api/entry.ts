@@ -61,3 +61,11 @@ export function publishEntryRevision(
     }
   )
 }
+
+/** 删除词条 */
+export function deleteEntry(worldId: string, entryId: string): Promise<void> {
+  return request<void>(
+    `/api/worlds/${encodeURIComponent(worldId)}/entries/${encodeURIComponent(entryId)}`,
+    { method: 'DELETE' }
+  )
+}

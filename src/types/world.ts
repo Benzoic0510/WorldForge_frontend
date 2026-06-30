@@ -119,6 +119,7 @@ export interface ForkWorldResponse {
 export interface ListWorldsParams {
   keyword?: string
   sortBy?: WorldSortBy
+  tags?: string
   page?: number
   pageSize?: number
 }

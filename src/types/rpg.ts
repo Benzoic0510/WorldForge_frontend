@@ -27,11 +27,8 @@ export interface RpgChannelResponse {
   worldId: string
   name: string
   channelType: string
+  creatorUserId: string
   memberUserIds: string[]
-  creatorUserId?: string
-  creatorId?: string
-  createdBy?: string
-  ownerId?: string
   createdAt: string
 }
 

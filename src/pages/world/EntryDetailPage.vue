@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { ApiError } from '@/api/http'
-import { getEntryDetail } from '@/api/entry'
+import { deleteEntry, getEntryDetail } from '@/api/entry'
 import { getWorldDetail } from '@/api/world'
 import type { EntryDetail } from '@/types/entry'
 import type { WorldDetail } from '@/types/world'
@@ -14,6 +14,8 @@ const loading = ref(true)
 const errorCode = ref('')
 const errorMessage = ref('')
 const world = ref<WorldDetail | null>(null)
+const deletingEntry = ref(false)
+const deleteEntryError = ref('')
 
 const worldId = computed(() => String(route.params.worldId || ''))
 const entryId = computed(() => String(route.params.entryId || ''))
@@ -128,6 +130,24 @@ function formatDate(value: string) {
   return new Date(value).toLocaleString('zh-CN')
 }
 
+async function handleDeleteEntry() {
+  const confirmed = window.confirm('确定要永久删除这个词条吗？此操作不可恢复。')
+  if (!confirmed) return
+
+  deletingEntry.value = true
+  deleteEntryError.value = ''
+  try {
+    await deleteEntry(worldId.value, entryId.value)
+    await router.push({ name: 'entry-list', params: { worldId: worldId.value } })
+  } catch (error) {
+    deleteEntryError.value = error instanceof ApiError
+      ? error.message
+      : '词条删除失败，请稍后重试。'
+  } finally {
+    deletingEntry.value = false
+  }
+}
+
 onMounted(async () => {
   await loadEntry()
 })
@@ -197,6 +217,15 @@ watch(
           >
             编辑词条
           </RouterLink>
+          <button
+            v-if="canEditEntry"
+            class="entry-delete-btn"
+            :disabled="deletingEntry"
+            @click="handleDeleteEntry"
+          >
+            {{ deletingEntry ? '删除中...' : '删除词条' }}
+          </button>
+          <p v-if="deleteEntryError" class="delete-error">{{ deleteEntryError }}</p>
           <div class="tag-list" aria-label="标签">
             <span v-for="tag in entry.tags" :key="tag">{{ tag }}</span>
           </div>
@@ -400,6 +429,37 @@ watch(
   background: #103b31;
   font-weight: 900;
   text-decoration: none;
+}
+
+.entry-delete-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid #c0392b;
+  border-radius: 8px;
+  color: #c0392b;
+  background: transparent;
+  font-weight: 900;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+
+.entry-delete-btn:hover:not(:disabled) {
+  background: #c0392b;
+  color: #fff;
+}
+
+.entry-delete-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.delete-error {
+  color: #c0392b;
+  font-size: 0.88rem;
+  font-weight: 600;
 }
 
 .eyebrow {

@@ -8,6 +8,7 @@ import { ApiError } from '@/api/http'
 import { searchUsers } from '@/api/user'
 import { forkWorld, getWorldDetail, joinWorld, applyJoinWorld, createWorldInvitation, listWorldMembers } from '@/api/world'
 import { getStoryGraph } from '@/api/storyline'
+import EntryColumnList from '@/components/world/EntryColumnList.vue'
 import { useAuthStore } from '@/stores/auth'
 import type { ChangeLogItem } from '@/types/changelog'
 import type { EntryListItem } from '@/types/entry'
@@ -367,13 +368,7 @@ function getPanelErrorMessage(error: unknown, fallback: string) {
 }
 
 function buildEntryPreview(content: string): string {
-  const trimmed = content.trim()
-  if (trimmed.length <= 360) return trimmed
-  return `${trimmed.slice(0, 360).trimEnd()}...`
-}
-
-function getEntryPreview(entry: EntryPreviewItem): string {
-  return entry.contentPreview || entry.summary || '暂无摘要。'
+  return content.trim()
 }
 
 async function hydrateEntryPreviews(items: EntryListItem[]): Promise<EntryPreviewItem[]> {
@@ -894,27 +889,13 @@ watch(
           <p>这个世界还没有公开可阅读的设定词条。</p>
         </div>
 
-        <div v-else class="entry-grid">
-          <RouterLink
-            v-for="entry in entries"
-            :key="entry.entryId"
-            class="entry-card"
-            :to="{
-              name: 'entry-detail',
-              params: { worldId: entry.worldId, entryId: entry.entryId }
-            }"
-          >
-            <div class="entry-card__meta">
-              <span>{{ formatDate(entry.updatedAt) }}</span>
-              <strong>查看词条</strong>
-            </div>
-            <h3>{{ entry.title }}</h3>
-            <p>{{ getEntryPreview(entry) }}</p>
-            <div class="tag-list tag-list--compact" aria-label="标签">
-              <span v-for="tag in entry.tags" :key="tag">{{ tag }}</span>
-            </div>
-          </RouterLink>
-        </div>
+        <EntryColumnList
+          v-else
+          :entries="entries"
+          single-expanded
+          collapse-on-outside-click
+          scroll-on-expand
+        />
       </section>
 
       <section v-else-if="activeTab === 'storylines'" class="content-panel">

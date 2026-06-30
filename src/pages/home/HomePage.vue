@@ -19,6 +19,7 @@ interface DiscoverWorld {
 const discoverWorlds = ref<DiscoverWorld[]>([])
 const discoverLoading = ref(true)
 const discoverError = ref('')
+const discoverFilterTag = ref('')
 
 function toDiscoverWorld(item: WorldListItem): DiscoverWorld {
   return {
@@ -50,15 +51,35 @@ function formatRelativeTime(isoString: string): string {
   return new Date(isoString).toLocaleDateString('zh-CN')
 }
 
-onMounted(async () => {
+async function loadDiscover() {
+  discoverLoading.value = true
+  discoverError.value = ''
   try {
-    const result = await listWorlds({ sortBy: 'hot', pageSize: 3 })
+    const result = await listWorlds({
+      sortBy: 'hot',
+      pageSize: 3,
+      tags: discoverFilterTag.value || undefined
+    })
     discoverWorlds.value = result.items.map(toDiscoverWorld)
   } catch (e) {
     discoverError.value = e instanceof ApiError ? e.message : '加载推荐失败，请稍后重试'
   } finally {
     discoverLoading.value = false
   }
+}
+
+async function handleTagClick(tag: string) {
+  discoverFilterTag.value = tag
+  await loadDiscover()
+}
+
+async function clearTagFilter() {
+  discoverFilterTag.value = ''
+  await loadDiscover()
+}
+
+onMounted(async () => {
+  await loadDiscover()
 })
 </script>
 
@@ -113,6 +134,11 @@ onMounted(async () => {
           <h2>平台推荐的世界观</h2>
         </div>
 
+        <div v-if="discoverFilterTag" class="active-filter">
+          <span>当前筛选：<strong>#{{ discoverFilterTag }}</strong></span>
+          <button class="filter-clear-btn" @click="clearTagFilter">✕ 清除</button>
+        </div>
+
         <div v-if="discoverLoading" class="inline-state">
           <p>正在加载推荐世界观...</p>
         </div>
@@ -137,7 +163,12 @@ onMounted(async () => {
               <h3>{{ world.title }}</h3>
               <p>{{ world.summary || '暂无简介。' }}</p>
               <div v-if="world.tags.length > 0" class="tag-list" aria-label="标签">
-                <span v-for="tag in world.tags" :key="tag">{{ tag }}</span>
+                <span
+                  v-for="tag in world.tags"
+                  :key="tag"
+                  class="tag-clickable"
+                  @click.prevent="handleTagClick(tag)"
+                >{{ tag }}</span>
               </div>
               <div class="world-card-footer">
                 <span class="world-card-meta">{{ world.entryCount }} 词条</span>
@@ -352,6 +383,49 @@ h1 {
   background: rgb(20 115 90 / 7%);
   font-size: 0.72rem;
   font-weight: 800;
+}
+
+.tag-clickable {
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.tag-clickable:hover {
+  background: rgb(20 115 90 / 22%);
+  border-color: rgb(20 115 90 / 38%);
+}
+
+.active-filter {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+  padding: 10px 16px;
+  border: 1px solid rgb(20 115 90 / 22%);
+  border-radius: 8px;
+  background: rgb(20 115 90 / 6%);
+  font-size: 0.9rem;
+  color: var(--color-ink);
+}
+
+.active-filter strong {
+  color: var(--color-accent);
+}
+
+.filter-clear-btn {
+  padding: 3px 10px;
+  border: none;
+  border-radius: 6px;
+  background: rgb(20 115 90 / 12%);
+  color: var(--color-accent);
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.filter-clear-btn:hover {
+  background: rgb(20 115 90 / 24%);
 }
 
 .world-card-footer {

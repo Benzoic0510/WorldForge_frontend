@@ -35,11 +35,7 @@ const selectedChannel = computed(() =>
 )
 const selectedChannelMemberIds = computed(() => selectedChannel.value?.memberUserIds ?? [])
 const selectedChannelCreatorId = computed(() =>
-  selectedChannel.value?.creatorUserId ||
-  selectedChannel.value?.creatorId ||
-  selectedChannel.value?.createdBy ||
-  selectedChannel.value?.ownerId ||
-  ''
+  selectedChannel.value?.creatorUserId ?? ''
 )
 
 const worldRole = ref<'creator' | 'co_admin' | 'contributor' | null>(null)
@@ -702,9 +698,9 @@ async function submitCreateChannel() {
     })
     channels.value = [
       ...channels.value,
-      created.creatorId || created.createdBy || created.ownerId
+      created.creatorUserId
         ? created
-        : { ...created, creatorId: authStore.currentUser?.userId }
+        : { ...created, creatorUserId: authStore.currentUser?.userId ?? '' }
     ]
     selectedChannelId.value = created.channelId
     createPanelOpen.value = false

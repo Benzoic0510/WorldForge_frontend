@@ -33,6 +33,10 @@ function buildWorldListQuery(basePath: string, params: ListWorldsParams): string
     searchParams.set('sortBy', params.sortBy)
   }
 
+  if (params.tags) {
+    searchParams.set('tags', params.tags)
+  }
+
   if (params.page != null) {
     searchParams.set('page', String(params.page))
   }
