@@ -345,7 +345,7 @@ onMounted(async () => {
             <p class="submission-card__line">
               {{ lineNameMap[submission.targetLineId] || submission.targetLineId }}
             </p>
-            <p class="submission-card__summary">{{ submission.summary }}</p>
+            <p class="submission-card__summary">{{ submission.title || submission.summary }}</p>
             <div class="submission-card__footer">
               <span
                 class="status-chip"
@@ -426,8 +426,8 @@ onMounted(async () => {
                   <span>{{ formatDateTime(reviewModal.submission.submittedAt) }}</span>
                 </div>
                 <div class="modal-info-row">
-                  <span class="modal-info-label">摘要</span>
-                  <span>{{ reviewModal.submission.summary }}</span>
+                  <span class="modal-info-label">标题</span>
+                  <span>{{ reviewModal.submission.title || reviewModal.submission.summary }}</span>
                 </div>
                 <div class="modal-info-row">
                   <span class="modal-info-label">基于版本</span>

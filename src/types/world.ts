@@ -141,6 +141,8 @@ export interface WorldJoinRequestResponse {
   requestId: string
   worldId: string
   requesterId: string
+  requesterUsername?: string | null
+  requesterNickname?: string | null
   message: string
   status: string
   reviewedBy: string | null

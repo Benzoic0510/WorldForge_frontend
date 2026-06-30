@@ -246,8 +246,8 @@ onMounted(async () => {
             <strong>{{ successSubmittedAt }}</strong>
           </div>
           <div class="result-row result-row--summary">
-            <span class="result-label">提交摘要</span>
-            <strong>{{ successResult.summary }}</strong>
+            <span class="result-label">推送标题</span>
+            <strong>{{ successResult.title || successResult.summary }}</strong>
           </div>
         </div>
         <div class="state-actions">

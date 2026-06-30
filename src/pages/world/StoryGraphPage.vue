@@ -696,7 +696,7 @@ onUnmounted(() => {
                   :key="push.submissionId"
                   :value="push.submissionId"
                 >
-                  {{ push.summary }}
+                  {{ push.title || push.summary }}
                 </option>
               </select>
               <small v-if="forkPushesLoading" class="modal-hint">加载推送列表中...</small>

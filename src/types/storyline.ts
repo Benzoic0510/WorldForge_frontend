@@ -136,6 +136,7 @@ export interface SubmitStoryPushResponse {
   worldId: string
   targetLineId: string
   status: string
+  title?: string
   summary: string
   submittedAt: string
 }
@@ -155,6 +156,7 @@ export interface SubmissionSubmitter {
 
 export interface SubmissionListItem {
   submissionId: string
+  title?: string
   summary: string
   content?: string
   submitter: SubmissionSubmitter
@@ -175,6 +177,7 @@ export interface StoryPushDetail {
   basedOnPushTitle: string | null
   latestPushId: string | null
   latestPushTitle: string | null
+  title?: string
   summary: string
   content: string
   submitter: SubmissionSubmitter

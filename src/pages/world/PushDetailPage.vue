@@ -22,6 +22,10 @@ function formatStatus(status: string): string {
   return map[status] ?? status
 }
 
+function storyPushTitle(push: StoryPushDetail): string {
+  return push.title || push.summary
+}
+
 onMounted(async () => {
   try {
     detail.value = await getStoryPushDetail(worldId, submissionId)
@@ -62,7 +66,7 @@ onMounted(async () => {
 
     <article v-else-if="detail" class="push-detail-card">
       <header class="push-detail-header">
-        <h1>{{ detail.summary }}</h1>
+        <h1>{{ storyPushTitle(detail) }}</h1>
         <div class="push-detail-meta">
           <span class="push-detail-badge" :class="`push-detail-badge--${detail.status}`">
             {{ formatStatus(detail.status) }}

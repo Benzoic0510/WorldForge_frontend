@@ -121,6 +121,10 @@ function statusLabel(status: string) {
   return status
 }
 
+function requesterDisplayName(request: WorldJoinRequestResponse) {
+  return request.requesterNickname || request.requesterUsername || request.requesterId
+}
+
 async function loadWorld() {
   world.value = await getWorldDetail(worldId.value)
 }
@@ -498,7 +502,7 @@ onMounted(async () => {
           <article v-for="request in requests" :key="request.requestId" class="request-card">
             <div class="request-card__top">
               <div>
-                <strong>{{ request.requesterId }}</strong>
+                <strong>{{ requesterDisplayName(request) }}</strong>
                 <span>{{ formatDateTime(request.requestedAt) }}</span>
               </div>
               <span class="status-chip" :class="`status-chip--${request.status}`">
@@ -545,7 +549,7 @@ onMounted(async () => {
           <div class="modal-body">
             <div class="review-summary">
               <span>申请人</span>
-              <strong>{{ reviewTarget.requesterId }}</strong>
+              <strong>{{ requesterDisplayName(reviewTarget) }}</strong>
               <p>{{ reviewTarget.message || '申请人未填写理由。' }}</p>
             </div>
             <label class="field">

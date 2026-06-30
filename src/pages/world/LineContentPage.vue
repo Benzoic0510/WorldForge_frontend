@@ -275,7 +275,7 @@ onMounted(async () => {
           >
             <div class="timeline-marker" :class="`timeline-marker--${storyLine.type}`"></div>
             <div class="timeline-card">
-              <h3 class="timeline-card__title">{{ push.summary }}</h3>
+              <h3 class="timeline-card__title">{{ push.title || push.summary }}</h3>
               <div class="timeline-card__meta">
                 <span class="timeline-card__author">{{ push.submitter.nickname }}</span>
                 <span class="timeline-card__time">{{ formatDateTime(push.submittedAt) }}</span>

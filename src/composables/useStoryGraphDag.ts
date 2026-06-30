@@ -109,6 +109,10 @@ function truncateLabel(text: string | null | undefined, maxLen = 18): string | u
   return text.length > maxLen ? text.slice(0, maxLen) + '...' : text
 }
 
+function submissionTitle(push: SubmissionListItem): string {
+  return push.title || push.summary
+}
+
 export interface BuildVisDataResult {
   nodes: VisNode[]
   edges: VisEdge[]
@@ -194,7 +198,7 @@ export function buildPushGraph(
         nodeId: push.submissionId,
         pushId: push.submissionId,
         lineId,
-        title: push.summary,
+        title: submissionTitle(push),
         content: push.content,
         lineType: lineType as 'main' | 'fork' | 'merge',
         lineName,
