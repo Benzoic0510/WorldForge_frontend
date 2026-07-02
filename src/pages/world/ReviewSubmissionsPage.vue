@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
-import { getStoryGraph, listSubmissions, reviewSubmission } from '@/api/storyline'
+import { getStoryGraph, getStoryPushDetail, listSubmissions, reviewSubmission } from '@/api/storyline'
 import { ApiError } from '@/api/http'
 import { getWorldDetail } from '@/api/world'
 import type { WorldDetail } from '@/types/world'
 import type {
   StoryGraphData,
+  StoryPushDetail,
   SubmissionListItem,
   ReviewSubmissionResponse
 } from '@/types/storyline'
@@ -22,12 +23,16 @@ const page = ref(1)
 const activeFilter = ref('pending_review')
 const errorMessage = ref('')
 
-const reviewModal = ref<{ show: boolean; submission: SubmissionListItem | null; comment: string; isSubmitting: boolean; error: string; result: ReviewSubmissionResponse | null }>({
+type ReviewSubmissionDetail = SubmissionListItem & Partial<StoryPushDetail>
+
+const reviewModal = ref<{ show: boolean; submission: ReviewSubmissionDetail | null; comment: string; isSubmitting: boolean; isLoadingDetail: boolean; error: string; detailError: string; result: ReviewSubmissionResponse | null }>({
   show: false,
   submission: null,
   comment: '',
   isSubmitting: false,
+  isLoadingDetail: false,
   error: '',
+  detailError: '',
   result: null
 })
 
@@ -173,14 +178,28 @@ async function handleFilterChange(filter: string) {
   await fetchSubmissions()
 }
 
-function openReviewModal(submission: SubmissionListItem) {
+async function openReviewModal(submission: SubmissionListItem) {
   reviewModal.value = {
     show: true,
     submission,
     comment: '',
     isSubmitting: false,
+    isLoadingDetail: true,
     error: '',
+    detailError: '',
     result: null
+  }
+
+  try {
+    const detail = await getStoryPushDetail(worldId.value, submission.submissionId)
+    reviewModal.value.submission = {
+      ...submission,
+      ...detail,
+    }
+  } catch (error) {
+    reviewModal.value.detailError = getErrorMessage(error, '完整内容暂时无法加载，请稍后重试。')
+  } finally {
+    reviewModal.value.isLoadingDetail = false
   }
 }
 
@@ -345,7 +364,8 @@ onMounted(async () => {
             <p class="submission-card__line">
               {{ lineNameMap[submission.targetLineId] || submission.targetLineId }}
             </p>
-            <p class="submission-card__summary">{{ submission.title || submission.summary }}</p>
+            <h3 class="submission-card__title">{{ submission.title || submission.summary }}</h3>
+            <p class="submission-card__summary">{{ submission.summary }}</p>
             <div class="submission-card__footer">
               <span
                 class="status-chip"
@@ -430,6 +450,10 @@ onMounted(async () => {
                   <span>{{ reviewModal.submission.title || reviewModal.submission.summary }}</span>
                 </div>
                 <div class="modal-info-row">
+                  <span class="modal-info-label">摘要</span>
+                  <span>{{ reviewModal.submission.summary }}</span>
+                </div>
+                <div class="modal-info-row">
                   <span class="modal-info-label">基于版本</span>
                   <span>{{ reviewModal.submission.basedOnPushTitle || '线路起点' }}</span>
                 </div>
@@ -445,6 +469,20 @@ onMounted(async () => {
                   <span>该提交基于旧版本创作，批准后会按当前审核顺序合入故事线。</span>
                 </div>
               </div>
+
+              <section class="modal-content-section">
+                <h3>完整内容</h3>
+                <p v-if="reviewModal.isLoadingDetail" class="modal-content-state">正在读取完整内容...</p>
+                <p v-else-if="reviewModal.detailError" class="modal-content-state modal-content-state--error">
+                  {{ reviewModal.detailError }}
+                </p>
+                <div
+                  v-else-if="reviewModal.submission.content"
+                  class="modal-content-body"
+                  v-text="reviewModal.submission.content"
+                ></div>
+                <p v-else class="modal-content-state">正文内容为空。</p>
+              </section>
 
               <label class="modal-field">
                 <span class="modal-field__label">审核意见（可选）</span>
@@ -692,6 +730,14 @@ onMounted(async () => {
   line-height: 1.2;
 }
 
+.submission-card__title {
+  margin: 0;
+  color: var(--color-ink);
+  font-size: 1rem;
+  font-weight: 900;
+  line-height: 1.35;
+}
+
 .submission-card__summary {
   margin: 0;
   color: var(--color-muted);
@@ -897,6 +943,41 @@ onMounted(async () => {
 .modal-info-row span:last-child {
   color: var(--color-ink);
   line-height: 1.45;
+}
+
+.modal-content-section {
+  display: grid;
+  gap: 10px;
+}
+
+.modal-content-section h3 {
+  margin: 0;
+  color: var(--color-ink);
+  font-size: 1rem;
+}
+
+.modal-content-body,
+.modal-content-state {
+  margin: 0;
+  max-height: 260px;
+  overflow: auto;
+  padding: 14px;
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  background: rgb(255 255 255 / 56%);
+  color: var(--color-ink);
+  line-height: 1.65;
+  white-space: pre-wrap;
+}
+
+.modal-content-state {
+  color: var(--color-muted);
+}
+
+.modal-content-state--error {
+  color: #8f2d2d;
+  border-color: rgb(143 45 45 / 24%);
+  background: rgb(143 45 45 / 6%);
 }
 
 .modal-field {

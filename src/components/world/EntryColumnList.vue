@@ -17,16 +17,23 @@ const props = withDefaults(defineProps<{
   singleExpanded?: boolean
   collapseOnOutsideClick?: boolean
   scrollOnExpand?: boolean
+  openOnClick?: boolean
 }>(), {
   singleExpanded: false,
   collapseOnOutsideClick: false,
-  scrollOnExpand: false
+  scrollOnExpand: false,
+  openOnClick: true
 })
+
+const emit = defineEmits<{
+  'entry-dblclick': [entry: EntryColumnItem]
+}>()
 
 const router = useRouter()
 const listRef = ref<HTMLElement | null>(null)
 const expandedEntryIds = ref<Set<string>>(new Set())
 const entryElements = new Map<string, HTMLElement>()
+let clickTimer: ReturnType<typeof window.setTimeout> | null = null
 let scrollFrame = 0
 
 function getEntryBody(entry: EntryColumnItem): string {
@@ -71,8 +78,22 @@ async function scrollEntryIntoView(entryId: string) {
 }
 
 async function handleEntryClick(entry: EntryColumnItem) {
+  if (clickTimer) {
+    clearTimeout(clickTimer)
+    clickTimer = null
+  }
+
+  clickTimer = window.setTimeout(async () => {
+    clickTimer = null
+    await activateEntry(entry)
+  }, 220)
+}
+
+async function activateEntry(entry: EntryColumnItem) {
   if (isExpanded(entry.entryId)) {
-    await openEntry(entry)
+    if (props.openOnClick) {
+      await openEntry(entry)
+    }
     return
   }
 
@@ -83,7 +104,15 @@ async function handleEntryClick(entry: EntryColumnItem) {
 async function handleEntryKeydown(event: KeyboardEvent, entry: EntryColumnItem) {
   if (event.key !== 'Enter' && event.key !== ' ') return
   event.preventDefault()
-  await handleEntryClick(entry)
+  await activateEntry(entry)
+}
+
+function handleEntryDoubleClick(entry: EntryColumnItem) {
+  if (clickTimer) {
+    clearTimeout(clickTimer)
+    clickTimer = null
+  }
+  emit('entry-dblclick', entry)
 }
 
 function setEntryElement(entryId: string, element: Element | null) {
@@ -106,6 +135,9 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  if (clickTimer) {
+    clearTimeout(clickTimer)
+  }
   if (scrollFrame) {
     cancelAnimationFrame(scrollFrame)
   }
@@ -125,6 +157,7 @@ onUnmounted(() => {
       tabindex="0"
       :aria-expanded="isExpanded(entry.entryId)"
       @click="handleEntryClick(entry)"
+      @dblclick.stop="handleEntryDoubleClick(entry)"
       @keydown="handleEntryKeydown($event, entry)"
     >
       <div class="entry-column-card__main">

@@ -52,6 +52,7 @@ const canManageWorld = computed(() => {
   const role = world.value?.viewer.role
   return role === 'creator' || role === 'co_admin'
 })
+const canViewWorldMembers = computed(() => Boolean(world.value?.viewer.role))
 
 const storyLineCounts = computed(() => {
   const nodes = storyGraphData.value?.nodes
@@ -443,6 +444,14 @@ async function selectTab(nextTab: DetailTab) {
   }
 }
 
+async function openEntryInStudio(entry: EntryPreviewItem) {
+  await router.push({
+    name: 'world-studio',
+    params: { worldId: worldId.value },
+    query: { view: 'entries', entryId: entry.entryId }
+  })
+}
+
 async function fetchStoryLines() {
   storyLinesLoading.value = true
   try {
@@ -653,12 +662,12 @@ watch(
                       邀请成员
                     </button>
                     <RouterLink
-                      v-if="canManageWorld"
+                      v-if="canViewWorldMembers"
                       class="manage-dropdown__item"
                       :to="{ name: 'world-members', params: { worldId: world.worldId } }"
                       @click="showManageDropdown = false"
                     >
-                      成员与申请
+                      {{ canManageWorld ? '成员与申请' : '成员名单' }}
                     </RouterLink>
                   </div>
                 </div>
@@ -895,6 +904,8 @@ watch(
           single-expanded
           collapse-on-outside-click
           scroll-on-expand
+          :open-on-click="false"
+          @entry-dblclick="openEntryInStudio"
         />
       </section>
 

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
-import { createEntry, getEntryDetail, listEntries } from '@/api/entry'
+import { createEntry, deleteEntry, getEntryDetail, listEntries, publishEntryRevision } from '@/api/entry'
 import { ApiError } from '@/api/http'
 import { getWorldDetail } from '@/api/world'
 import { getStoryGraph, getStoryPushDetail, createForkLine, createMergeLine, listApprovedStoryPushes } from '@/api/storyline'
@@ -37,6 +37,7 @@ const canCreateMerge = computed(() => isMember.value)
 
 // ── Entries ──
 type EntryPreviewItem = EntryListItem & { contentPreview?: string }
+type EntryEditField = 'title' | 'tags' | 'content'
 
 const entries = ref<EntryPreviewItem[]>([])
 const entriesLoading = ref(false)
@@ -56,12 +57,27 @@ const isBookTurning = ref(false)
 const bookTurnKey = ref(0)
 const bookTurnDirection = ref<'forward' | 'backward'>('forward')
 const bookTurnDistance = ref(1)
+const isEntryEditMode = ref(false)
+const editingEntryField = ref<EntryEditField | null>(null)
+const showEntryEditConfirm = ref(false)
+const entryEditError = ref('')
+const entryEditSubmitting = ref(false)
+const entryDeleteSubmitting = ref(false)
+const entryEditForm = reactive({
+  title: '',
+  tagsText: '',
+  content: ''
+})
 let bookTurnTimer: ReturnType<typeof window.setTimeout> | null = null
 const BOOK_TURN_TOTAL_DURATION = 460
 const BOOK_TURN_PAGE_DURATION = 360
 const BOOK_TURN_FALLBACK_DELAY = BOOK_TURN_TOTAL_DURATION + 120
 const hasSearchKeyword = computed(() => searchKeyword.value.length > 0)
 const canLoadMoreEntries = computed(() => entriesPage.value < entriesTotalPages.value)
+const routeEntryId = computed(() => {
+  const entryId = route.query.entryId
+  return typeof entryId === 'string' ? entryId : ''
+})
 const displayedEntry = computed(() =>
   entries.value.find(entry => entry.entryId === displayedEntryId.value)
   ?? (displayedEntrySnapshot.value?.entryId === displayedEntryId.value ? displayedEntrySnapshot.value : null)
@@ -71,6 +87,19 @@ const pendingEntry = computed(() =>
   ?? (pendingEntrySnapshot.value?.entryId === pendingEntryId.value ? pendingEntrySnapshot.value : null)
 )
 const bookEntry = computed(() => displayedEntry.value ?? pendingEntry.value)
+const editableEntry = computed(() => (!isBookTurning.value ? displayedEntry.value : null))
+const isEditingDisplayedEntry = computed(() => isEntryEditMode.value && editableEntry.value != null)
+const parsedEntryEditTags = computed(() => parseEntryTags(entryEditForm.tagsText))
+const isEntryEditDirty = computed(() => {
+  const entry = editableEntry.value
+  if (!entry) return false
+
+  return (
+    entryEditForm.title.trim() !== entry.title
+    || entryEditForm.content.trim() !== getEntryContent(entry)
+    || parsedEntryEditTags.value.join('\n') !== entry.tags.join('\n')
+  )
+})
 const displayedEntryIndex = computed(() =>
   displayedEntry.value ? entries.value.findIndex(entry => entry.entryId === displayedEntry.value?.entryId) : -1
 )
@@ -263,8 +292,215 @@ function buildEntryPreview(content: string): string {
   return content.trim()
 }
 
+function buildEntrySummary(content: string): string {
+  const trimmed = content.trim()
+  if (trimmed.length <= 160) return trimmed
+  return `${trimmed.slice(0, 160).trimEnd()}...`
+}
+
 function getEntryContent(entry: EntryPreviewItem): string {
   return entry.contentPreview || entry.summary || '暂无正文内容。'
+}
+
+function parseEntryTags(value: string): string[] {
+  return Array.from(new Set(
+    value
+      .split(/[,，\n]/)
+      .map(tag => tag.trim())
+      .filter(Boolean)
+  ))
+}
+
+function seedEntryEditForm(entry: EntryPreviewItem) {
+  entryEditForm.title = entry.title
+  entryEditForm.tagsText = entry.tags.join('，')
+  entryEditForm.content = getEntryContent(entry)
+  editingEntryField.value = null
+  entryEditError.value = ''
+}
+
+function closeEntryEditMode() {
+  isEntryEditMode.value = false
+  editingEntryField.value = null
+  showEntryEditConfirm.value = false
+  entryEditError.value = ''
+}
+
+function closeEntryEditConfirm() {
+  if (entryEditSubmitting.value) return
+  showEntryEditConfirm.value = false
+  entryEditError.value = ''
+}
+
+function handleEntryQuillClick() {
+  if (!canEditWorld.value || !editableEntry.value || entryEditSubmitting.value || entryDeleteSubmitting.value) return
+
+  if (!isEntryEditMode.value) {
+    seedEntryEditForm(editableEntry.value)
+    isEntryEditMode.value = true
+    return
+  }
+
+  openEntryEditConfirm()
+}
+
+function beginInlineEntryEdit(field: EntryEditField) {
+  if (!isEditingDisplayedEntry.value || entryEditSubmitting.value || entryDeleteSubmitting.value) return
+  editingEntryField.value = field
+}
+
+function openEntryEditConfirm() {
+  if (!editableEntry.value || entryEditSubmitting.value || entryDeleteSubmitting.value) return
+
+  editingEntryField.value = null
+  entryEditError.value = ''
+  const validationError = validateEntryEditForm()
+  if (validationError) {
+    entryEditError.value = validationError
+    return
+  }
+
+  if (!isEntryEditDirty.value) {
+    closeEntryEditMode()
+    return
+  }
+
+  showEntryEditConfirm.value = true
+}
+
+function validateEntryEditForm(): string | null {
+  const title = entryEditForm.title.trim()
+  if (!title) return '请输入词条标题。'
+  if (title.length > 100) return '词条标题不能超过 100 个字符。'
+
+  const content = entryEditForm.content.trim()
+  if (!content) return '请输入词条正文。'
+  if (content.length > 100000) return '词条正文不能超过 100,000 个字符。'
+
+  return null
+}
+
+function getEditableTitle(entry: EntryPreviewItem): string {
+  return isEditingDisplayedEntry.value && editableEntry.value?.entryId === entry.entryId
+    ? entryEditForm.title
+    : entry.title
+}
+
+function getEditableTags(entry: EntryPreviewItem): string[] {
+  return isEditingDisplayedEntry.value && editableEntry.value?.entryId === entry.entryId
+    ? parsedEntryEditTags.value
+    : entry.tags
+}
+
+function getEditableContent(entry: EntryPreviewItem): string {
+  return isEditingDisplayedEntry.value && editableEntry.value?.entryId === entry.entryId
+    ? entryEditForm.content
+    : getEntryContent(entry)
+}
+
+function syncEditedEntry(detail: EntryDetail) {
+  const updatedPreview: EntryPreviewItem = {
+    entryId: detail.entryId,
+    worldId: detail.worldId,
+    title: detail.title,
+    summary: buildEntrySummary(detail.content),
+    tags: [...detail.tags],
+    updatedAt: detail.updatedAt,
+    contentPreview: buildEntryPreview(detail.content)
+  }
+
+  entries.value = entries.value.map(entry =>
+    entry.entryId === detail.entryId ? updatedPreview : entry
+  )
+
+  if (displayedEntryId.value === detail.entryId) {
+    displayedEntrySnapshot.value = updatedPreview
+  }
+  if (pendingEntryId.value === detail.entryId) {
+    pendingEntrySnapshot.value = updatedPreview
+  }
+}
+
+async function confirmEntryEdit() {
+  const entry = editableEntry.value
+  if (!entry || entryEditSubmitting.value || entryDeleteSubmitting.value) return
+
+  entryEditError.value = ''
+  const validationError = validateEntryEditForm()
+  if (validationError) {
+    entryEditError.value = validationError
+    return
+  }
+
+  if (!isEntryEditDirty.value) {
+    closeEntryEditMode()
+    return
+  }
+
+  entryEditSubmitting.value = true
+  try {
+    const updatedEntry = await publishEntryRevision(entry.worldId, entry.entryId, {
+      title: entryEditForm.title.trim(),
+      content: entryEditForm.content.trim(),
+      tags: parsedEntryEditTags.value
+    })
+
+    syncEditedEntry(updatedEntry)
+    closeEntryEditMode()
+    showToast('词条修订已完成。')
+  } catch (error) {
+    entryEditError.value = error instanceof ApiError ? error.message : '修订暂时无法发布，请稍后重试。'
+  } finally {
+    entryEditSubmitting.value = false
+  }
+}
+
+async function handleDeleteEditedEntry() {
+  const entry = editableEntry.value
+  if (!entry || entryEditSubmitting.value || entryDeleteSubmitting.value) return
+
+  const confirmed = window.confirm('确定要删除这个词条吗？删除后它会从当前世界的词条列表中移除。')
+  if (!confirmed) return
+
+  entryDeleteSubmitting.value = true
+  entryEditError.value = ''
+  try {
+    const deletedIndex = entries.value.findIndex(item => item.entryId === entry.entryId)
+    await deleteEntry(entry.worldId, entry.entryId)
+
+    entries.value = entries.value.filter(item => item.entryId !== entry.entryId)
+    closeEntryEditMode()
+    pendingEntryId.value = ''
+    pendingEntrySnapshot.value = null
+    isBookTurning.value = false
+
+    const nextEntry = entries.value[Math.min(Math.max(deletedIndex, 0), entries.value.length - 1)]
+    if (nextEntry) {
+      selectedEntryId.value = nextEntry.entryId
+      displayedEntryId.value = nextEntry.entryId
+      displayedEntrySnapshot.value = nextEntry
+      await router.replace({
+        query: {
+          ...route.query,
+          view: 'entries',
+          entryId: nextEntry.entryId
+        }
+      })
+    } else {
+      selectedEntryId.value = ''
+      displayedEntryId.value = ''
+      displayedEntrySnapshot.value = null
+      const nextQuery = { ...route.query, view: 'entries' }
+      delete nextQuery.entryId
+      await router.replace({ query: nextQuery })
+    }
+
+    showToast('词条已删除。')
+  } catch (error) {
+    entryEditError.value = error instanceof ApiError ? error.message : '词条删除失败，请稍后重试。'
+  } finally {
+    entryDeleteSubmitting.value = false
+  }
 }
 
 function getTurningExcerpt(entry: EntryPreviewItem | null): string {
@@ -292,7 +528,7 @@ function trapEntryIndexWheel(event: WheelEvent) {
 }
 
 function selectEntry(entry: EntryPreviewItem, index: number) {
-  if (isBookTurning.value) return
+  if (isBookTurning.value || isEntryEditMode.value || entryEditSubmitting.value) return
 
   const currentIndex = entries.value.findIndex(item => item.entryId === displayedEntryId.value)
   if (currentIndex === index) return
@@ -323,6 +559,15 @@ function selectEntry(entry: EntryPreviewItem, index: number) {
   bookTurnTimer = window.setTimeout(() => {
     completeBookTurn()
   }, BOOK_TURN_FALLBACK_DELAY)
+}
+
+function selectRouteEntry() {
+  if (!routeEntryId.value) return
+
+  const entryIndex = entries.value.findIndex(entry => entry.entryId === routeEntryId.value)
+  if (entryIndex < 0) return
+
+  selectEntry(entries.value[entryIndex], entryIndex)
 }
 
 function completeBookTurn() {
@@ -390,6 +635,7 @@ async function fetchEntries(options: { append?: boolean } = {}) {
       const refreshedPendingEntry = hydratedItems.find(entry => entry.entryId === pendingEntryId.value)
       if (refreshedDisplayedEntry) displayedEntrySnapshot.value = refreshedDisplayedEntry
       if (refreshedPendingEntry) pendingEntrySnapshot.value = refreshedPendingEntry
+      selectRouteEntry()
     }
     entriesTotalPages.value = data.totalPages
     entriesError.value = ''
@@ -903,9 +1149,17 @@ watch(graphDirection, () => {
 watch(activeView, async (view) => {
   if (view === 'entries' && entries.value.length === 0 && !entriesLoading.value) {
     await fetchEntries()
+  } else if (view === 'entries') {
+    selectRouteEntry()
   }
   if (view === 'graph' && !graphData.value && !graphLoading.value) {
     await loadGraph()
+  }
+})
+
+watch(routeEntryId, () => {
+  if (activeView.value === 'entries') {
+    selectRouteEntry()
   }
 })
 
@@ -919,6 +1173,14 @@ watch(() => route.params.worldId, () => {
 })
 
 function handleKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape' && showEntryEditConfirm.value && !entryEditSubmitting.value) {
+    closeEntryEditConfirm()
+    return
+  }
+  if (event.key === 'Escape' && editingEntryField.value) {
+    editingEntryField.value = null
+    return
+  }
   if (event.key === 'Escape' && showCreateEntryForm.value) {
     closeCreateEntryModal()
   }
@@ -1107,7 +1369,7 @@ onUnmounted(() => {
                 class="entry-index-item"
                 :class="{ 'entry-index-item--active': selectedEntryId === entry.entryId }"
                 :aria-pressed="selectedEntryId === entry.entryId"
-                :disabled="isBookTurning"
+                :disabled="isBookTurning || isEntryEditMode || entryEditSubmitting"
                 @click="selectEntry(entry, index)"
               >
                 <span class="entry-index-item__title">{{ entry.title }}</span>
@@ -1134,9 +1396,47 @@ onUnmounted(() => {
               class="entry-open-book"
               :class="[
                 `entry-open-book--${bookTurnDirection}`,
-                { 'entry-open-book--turning': isBookTurning }
+                {
+                  'entry-open-book--turning': isBookTurning,
+                  'entry-open-book--editing': isEntryEditMode
+                }
               ]"
             >
+              <button
+                v-if="canEditWorld && displayedEntry && !isBookTurning"
+                type="button"
+                class="entry-quill"
+                :class="{ 'entry-quill--active': isEntryEditMode }"
+                :disabled="entryEditSubmitting || entryDeleteSubmitting"
+                :aria-label="isEntryEditMode ? '确认词条修改' : '编辑词条'"
+                :title="isEntryEditMode ? '确认词条修改' : '编辑词条'"
+                @click="handleEntryQuillClick"
+              >
+                <span class="entry-quill__feather" aria-hidden="true"></span>
+                <span class="entry-quill__shaft" aria-hidden="true"></span>
+              </button>
+
+              <div v-if="isEditingDisplayedEntry" class="entry-edit-actions" aria-label="词条编辑操作">
+                <button
+                  type="button"
+                  class="entry-edit-action entry-edit-action--save"
+                  :disabled="entryEditSubmitting || entryDeleteSubmitting"
+                  @click="openEntryEditConfirm"
+                >
+                  <span v-if="entryEditSubmitting" class="spinner" aria-hidden="true"></span>
+                  {{ entryEditSubmitting ? '保存中' : '保存' }}
+                </button>
+                <button
+                  type="button"
+                  class="entry-edit-action entry-edit-action--delete"
+                  :disabled="entryEditSubmitting || entryDeleteSubmitting"
+                  @click="handleDeleteEditedEntry"
+                >
+                  <span v-if="entryDeleteSubmitting" class="spinner" aria-hidden="true"></span>
+                  {{ entryDeleteSubmitting ? '删除中' : '删除词条' }}
+                </button>
+              </div>
+
               <div v-if="pendingEntry && isBookTurning" class="entry-book-spread entry-book-spread--target">
                 <article class="entry-book-page entry-book-page--left">
                   <p class="entry-book-page__eyebrow">{{ pendingEntryLabel }}</p>
@@ -1170,7 +1470,26 @@ onUnmounted(() => {
                   :class="{ 'entry-book-page--turning-side-hidden': isBookTurning && bookTurnDirection === 'backward' }"
                 >
                   <p class="entry-book-page__eyebrow">{{ displayedEntryLabel }}</p>
-                  <h2>{{ (displayedEntry || bookEntry)?.title }}</h2>
+                  <div
+                    class="entry-editable-zone entry-editable-zone--title"
+                    :class="{
+                      'entry-editable-zone--enabled': isEditingDisplayedEntry,
+                      'entry-editable-zone--active': editingEntryField === 'title'
+                    }"
+                    data-edit-label="可编辑标题"
+                    @click="beginInlineEntryEdit('title')"
+                  >
+                    <input
+                      v-if="editingEntryField === 'title' && displayedEntry"
+                      v-model="entryEditForm.title"
+                      class="entry-inline-input entry-inline-input--title"
+                      maxlength="100"
+                      type="text"
+                      @click.stop
+                      @keydown.stop
+                    />
+                    <h2 v-else>{{ getEditableTitle((displayedEntry || bookEntry)!) }}</h2>
+                  </div>
                   <dl class="entry-book-meta">
                     <div>
                       <dt>更新时间</dt>
@@ -1181,8 +1500,36 @@ onUnmounted(() => {
                       <dd>{{ (displayedEntry || bookEntry)?.entryId }}</dd>
                     </div>
                   </dl>
-                  <div v-if="(displayedEntry || bookEntry)!.tags.length > 0" class="entry-book-tags" aria-label="标签">
-                    <span v-for="tag in (displayedEntry || bookEntry)!.tags" :key="tag">{{ tag }}</span>
+                  <div
+                    class="entry-editable-zone entry-editable-zone--tags"
+                    :class="{
+                      'entry-editable-zone--enabled': isEditingDisplayedEntry,
+                      'entry-editable-zone--active': editingEntryField === 'tags'
+                    }"
+                    data-edit-label="可编辑标签"
+                    @click="beginInlineEntryEdit('tags')"
+                  >
+                    <input
+                      v-if="editingEntryField === 'tags' && displayedEntry"
+                      v-model="entryEditForm.tagsText"
+                      class="entry-inline-input"
+                      maxlength="500"
+                      placeholder="用逗号分隔标签"
+                      type="text"
+                      @click.stop
+                      @keydown.stop
+                    />
+                    <p v-if="editingEntryField === 'tags' && displayedEntry" class="entry-edit-field-hint">
+                      多个标签请用逗号分隔。
+                    </p>
+                    <div
+                      v-else-if="getEditableTags((displayedEntry || bookEntry)!).length > 0"
+                      class="entry-book-tags"
+                      aria-label="标签"
+                    >
+                      <span v-for="tag in getEditableTags((displayedEntry || bookEntry)!)" :key="tag">{{ tag }}</span>
+                    </div>
+                    <p v-else class="entry-empty-edit-hint">暂无标签</p>
                   </div>
                 </article>
 
@@ -1191,8 +1538,26 @@ onUnmounted(() => {
                   :class="{ 'entry-book-page--turning-side-hidden': isBookTurning && bookTurnDirection === 'forward' }"
                 >
                   <p class="entry-book-page__eyebrow">Content</p>
-                  <div class="entry-book-content">
-                    <p>{{ getEntryContent((displayedEntry || bookEntry)!) }}</p>
+                  <div
+                    class="entry-editable-zone entry-editable-zone--content"
+                    :class="{
+                      'entry-editable-zone--enabled': isEditingDisplayedEntry,
+                      'entry-editable-zone--active': editingEntryField === 'content'
+                    }"
+                    data-edit-label="可编辑正文"
+                    @click="beginInlineEntryEdit('content')"
+                  >
+                    <textarea
+                      v-if="editingEntryField === 'content' && displayedEntry"
+                      v-model="entryEditForm.content"
+                      class="entry-inline-textarea"
+                      maxlength="100000"
+                      @click.stop
+                      @keydown.stop
+                    ></textarea>
+                    <div v-else class="entry-book-content">
+                      <p>{{ getEditableContent((displayedEntry || bookEntry)!) }}</p>
+                    </div>
                   </div>
                 </article>
               </div>
@@ -1292,16 +1657,6 @@ onUnmounted(() => {
           <button type="button" @click="loadMoreEntries">再试一次</button>
         </div>
 
-        <div v-if="canLoadMoreEntries && !entriesLoading" class="load-more-row">
-          <button
-            type="button"
-            class="studio-action studio-action--primary"
-            :disabled="entriesLoadingMore"
-            @click="loadMoreEntries"
-          >
-            {{ entriesLoadingMore ? '继续整理中...' : '加载更多词条' }}
-          </button>
-        </div>
       </template>
 
       <!-- Graph view -->
@@ -1492,6 +1847,62 @@ onUnmounted(() => {
               >
                 <span v-if="entryFormSubmitting" class="spinner" aria-hidden="true"></span>
                 {{ entryFormSubmitting ? '正在创建...' : '创建词条' }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- Entry Edit Confirm Modal -->
+    <Teleport to="body">
+      <Transition name="modal">
+        <div
+          v-if="showEntryEditConfirm"
+          class="modal-overlay"
+          @click.self="closeEntryEditConfirm"
+        >
+          <div class="modal-card entry-edit-confirm" role="dialog" aria-modal="true" aria-labelledby="entry-edit-confirm-title">
+            <div class="modal-header">
+              <h2 id="entry-edit-confirm-title" class="modal-title">确认修改词条</h2>
+              <button
+                type="button"
+                class="modal-close-btn"
+                aria-label="关闭"
+                :disabled="entryEditSubmitting"
+                @click="closeEntryEditConfirm"
+              >
+                <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="3" y1="3" x2="15" y2="15" /><line x1="15" y1="3" x2="3" y2="15" /></svg>
+              </button>
+            </div>
+
+            <div class="modal-body">
+              <p class="entry-edit-confirm__text">
+                确认发布当前书页上的修改吗？确认后会生成一次新的词条修订。
+              </p>
+              <p v-if="!isEntryEditDirty" class="entry-edit-confirm__note">
+                当前没有检测到内容变更，确认后会退出编辑状态。
+              </p>
+              <p v-if="entryEditError" class="form-error" role="alert">{{ entryEditError }}</p>
+            </div>
+
+            <div class="modal-footer">
+              <button
+                type="button"
+                class="cancel-btn"
+                :disabled="entryEditSubmitting"
+                @click="closeEntryEditConfirm"
+              >
+                继续修改
+              </button>
+              <button
+                type="button"
+                class="submit-btn"
+                :disabled="entryEditSubmitting"
+                @click="confirmEntryEdit"
+              >
+                <span v-if="entryEditSubmitting" class="spinner" aria-hidden="true"></span>
+                {{ entryEditSubmitting ? '正在提交...' : '确认修改' }}
               </button>
             </div>
           </div>
@@ -2132,6 +2543,175 @@ onUnmounted(() => {
   animation: book-settle 560ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+.entry-quill {
+  position: absolute;
+  top: 34px;
+  right: -52px;
+  z-index: 8;
+  width: 74px;
+  height: 190px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  transform: rotate(18deg) translateZ(26px);
+  transform-style: preserve-3d;
+  filter: drop-shadow(0 20px 18px rgb(34 28 18 / 22%));
+  transition:
+    filter 220ms ease,
+    transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.entry-quill:hover,
+.entry-quill:focus-visible {
+  outline: none;
+  filter: drop-shadow(0 30px 22px rgb(34 28 18 / 28%));
+  transform: rotate(14deg) translate3d(-4px, -14px, 34px);
+}
+
+.entry-quill:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.entry-quill--active {
+  filter:
+    drop-shadow(0 30px 22px rgb(34 28 18 / 30%))
+    drop-shadow(0 0 10px rgb(16 59 49 / 18%));
+  transform: rotate(14deg) translate3d(-4px, -14px, 34px);
+}
+
+.entry-quill__feather {
+  position: absolute;
+  top: 0;
+  left: 17px;
+  width: 40px;
+  height: 126px;
+  border-radius: 72% 28% 64% 36% / 84% 68% 32% 16%;
+  background:
+    linear-gradient(124deg, rgb(255 255 255 / 96%) 0 35%, rgb(215 229 221 / 94%) 36% 62%, rgb(126 160 146 / 92%) 100%);
+  box-shadow:
+    inset -10px 8px 16px rgb(40 75 64 / 16%),
+    inset 7px -4px 12px rgb(255 255 255 / 76%);
+  transform-origin: 50% 100%;
+}
+
+.entry-quill__feather::before {
+  position: absolute;
+  top: 12px;
+  bottom: -4px;
+  left: 19px;
+  width: 2px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #f9f4e6, #8d7650);
+  content: '';
+  z-index: 1;
+}
+
+.entry-quill__feather::after {
+  position: absolute;
+  inset: 16px 8px 18px 8px;
+  background:
+    repeating-linear-gradient(136deg, rgb(45 91 76 / 28%) 0 1px, transparent 1px 10px),
+    repeating-linear-gradient(44deg, rgb(255 255 255 / 52%) 0 1px, transparent 1px 12px);
+  clip-path: polygon(46% 0, 100% 10%, 68% 100%, 0 88%);
+  content: '';
+}
+
+.entry-quill__shaft {
+  position: absolute;
+  top: 110px;
+  left: 35px;
+  width: 8px;
+  height: 76px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #a88648, #3b2f21 82%);
+  box-shadow: inset -2px 0 2px rgb(255 255 255 / 34%);
+}
+
+.entry-quill__shaft::after {
+  position: absolute;
+  right: -2px;
+  bottom: -4px;
+  width: 12px;
+  height: 22px;
+  border-radius: 60% 40% 70% 30%;
+  background: linear-gradient(160deg, #2d241c, #0f0d0a);
+  content: '';
+}
+
+.entry-edit-actions {
+  position: absolute;
+  right: 24px;
+  bottom: 20px;
+  z-index: 12;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px;
+  border: 1px solid rgb(69 148 122 / 22%);
+  border-radius: 999px;
+  background: rgb(250 248 241 / 92%);
+  box-shadow: 0 16px 32px rgb(32 58 50 / 12%);
+  backdrop-filter: blur(8px);
+}
+
+.entry-edit-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-width: 76px;
+  min-height: 34px;
+  padding: 0 14px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 0.86rem;
+  font-weight: 900;
+  cursor: pointer;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease,
+    transform 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.entry-edit-action:hover:not(:disabled),
+.entry-edit-action:focus-visible:not(:disabled) {
+  outline: none;
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgb(32 58 50 / 14%);
+}
+
+.entry-edit-action:disabled {
+  cursor: wait;
+  opacity: 0.68;
+}
+
+.entry-edit-action--save {
+  color: #f8f1df;
+  background: #103b31;
+  border-color: rgb(16 59 49 / 18%);
+}
+
+.entry-edit-action--save:hover:not(:disabled),
+.entry-edit-action--save:focus-visible:not(:disabled) {
+  background: #174d40;
+}
+
+.entry-edit-action--delete {
+  color: #8c3128;
+  background: rgb(255 255 251 / 80%);
+  border-color: rgb(140 49 40 / 24%);
+}
+
+.entry-edit-action--delete:hover:not(:disabled),
+.entry-edit-action--delete:focus-visible:not(:disabled) {
+  color: #f8f1df;
+  background: #8c3128;
+  border-color: #8c3128;
+}
+
 .entry-open-book::before {
   position: absolute;
   top: 22px;
@@ -2207,6 +2787,146 @@ onUnmounted(() => {
   font-size: clamp(2rem, 3vw, 3.3rem);
   line-height: 1.08;
   overflow-wrap: anywhere;
+}
+
+.entry-editable-zone {
+  position: relative;
+  min-width: 0;
+  margin: -8px;
+  padding: 8px;
+  border: 1px dashed transparent;
+  border-radius: 8px;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.entry-editable-zone--enabled {
+  border-color: rgb(69 148 122 / 42%);
+  background:
+    linear-gradient(90deg, rgb(69 148 122 / 8%), transparent 72%),
+    rgb(255 255 255 / 18%);
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 34%),
+    0 8px 18px rgb(32 58 50 / 6%);
+  cursor: text;
+}
+
+.entry-editable-zone--enabled::after {
+  position: absolute;
+  top: -10px;
+  right: 10px;
+  padding: 2px 8px;
+  border: 1px solid rgb(69 148 122 / 34%);
+  border-radius: 999px;
+  color: #285247;
+  background: rgb(250 248 241 / 96%);
+  box-shadow: 0 6px 14px rgb(32 58 50 / 8%);
+  content: attr(data-edit-label);
+  font-size: 0.68rem;
+  font-weight: 900;
+  line-height: 1.35;
+  pointer-events: none;
+}
+
+.entry-editable-zone--enabled:hover,
+.entry-editable-zone--active {
+  border-color: rgb(16 59 49 / 62%);
+  background:
+    linear-gradient(90deg, rgb(69 148 122 / 14%), transparent 72%),
+    rgb(255 255 255 / 26%);
+  box-shadow:
+    inset 0 0 0 1px rgb(16 59 49 / 12%),
+    0 10px 22px rgb(32 58 50 / 9%);
+}
+
+.entry-editable-zone--active {
+  border-style: solid;
+}
+
+.entry-editable-zone--active::after {
+  border-color: rgb(16 59 49 / 48%);
+  color: #f8f1df;
+  background: #103b31;
+}
+
+.entry-editable-zone--title {
+  align-self: start;
+}
+
+.entry-editable-zone--tags {
+  min-height: 42px;
+}
+
+.entry-editable-zone--content {
+  min-height: 360px;
+}
+
+.entry-inline-input,
+.entry-inline-textarea {
+  width: 100%;
+  border: 1px dashed rgb(16 59 49 / 38%);
+  border-radius: 6px;
+  color: #17241f;
+  background:
+    linear-gradient(180deg, rgb(255 252 243 / 10%), rgb(255 252 243 / 20%)),
+    transparent;
+  box-shadow:
+    inset 0 -1px 0 rgb(16 59 49 / 10%),
+    0 8px 16px rgb(48 39 24 / 4%);
+  font: inherit;
+  outline: 0;
+}
+
+.entry-inline-input:focus,
+.entry-inline-textarea:focus {
+  border-color: #103b31;
+  background:
+    linear-gradient(180deg, rgb(255 252 243 / 8%), rgb(255 252 243 / 16%)),
+    transparent;
+  box-shadow:
+    inset 0 -2px 0 rgb(16 59 49 / 18%),
+    0 0 0 2px rgb(69 148 122 / 12%);
+}
+
+.entry-inline-input {
+  min-height: 40px;
+  padding: 8px 10px;
+  font-weight: 800;
+}
+
+.entry-inline-input--title {
+  min-height: 52px;
+  padding: 2px 8px 5px;
+  border-color: transparent transparent rgb(16 59 49 / 34%);
+  border-radius: 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.7rem, 2.5vw, 2.8rem);
+  font-weight: 900;
+  line-height: 1.08;
+  box-shadow: inset 0 -1px 0 rgb(16 59 49 / 14%);
+}
+
+.entry-inline-textarea {
+  min-height: 360px;
+  resize: vertical;
+  padding: 12px;
+  line-height: 1.85;
+}
+
+.entry-empty-edit-hint {
+  margin: 0;
+  color: rgb(86 107 100 / 72%);
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.entry-edit-field-hint {
+  margin: 6px 2px 0;
+  color: rgb(86 107 100 / 76%);
+  font-size: 0.76rem;
+  font-weight: 800;
 }
 
 .entry-book-meta {
@@ -2447,11 +3167,6 @@ onUnmounted(() => {
   }
 }
 
-.load-more-row {
-  display: flex;
-  justify-content: center;
-}
-
 .append-error-row {
   display: flex;
   align-items: center;
@@ -2651,6 +3366,12 @@ onUnmounted(() => {
     grid-template-columns: 1fr;
   }
 
+  .entry-quill {
+    right: 8px;
+    top: 18px;
+    transform: rotate(18deg) scale(0.86) translateZ(26px);
+  }
+
   .entry-book-index {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     max-height: none;
@@ -2691,6 +3412,24 @@ onUnmounted(() => {
 
   .entry-book-content {
     max-height: 46vh;
+  }
+
+  .entry-quill {
+    width: 56px;
+    height: 150px;
+    transform: rotate(18deg) scale(0.72) translateZ(20px);
+    transform-origin: top right;
+  }
+
+  .entry-quill:hover,
+  .entry-quill:focus-visible,
+  .entry-quill--active {
+    transform: rotate(14deg) scale(0.72) translate3d(-2px, -8px, 24px);
+  }
+
+  .entry-editable-zone--content,
+  .entry-inline-textarea {
+    min-height: 260px;
   }
 
   .studio-header {
@@ -2781,6 +3520,23 @@ onUnmounted(() => {
   gap: 10px;
   padding: 16px 24px;
   border-top: 1px solid var(--color-line);
+}
+
+.entry-edit-confirm__text,
+.entry-edit-confirm__note {
+  margin: 0;
+  line-height: 1.75;
+}
+
+.entry-edit-confirm__text {
+  color: var(--color-ink);
+  font-weight: 800;
+}
+
+.entry-edit-confirm__note {
+  margin-top: 10px;
+  color: var(--color-muted);
+  font-size: 0.92rem;
 }
 
 /* Form inside modal */

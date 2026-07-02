@@ -972,6 +972,8 @@ h1 {
   right: 0;
   display: flex;
   flex-wrap: wrap;
+  align-items: flex-start;
+  align-content: flex-start;
   gap: 6px;
   height: 54px;
   overflow: hidden;
@@ -990,14 +992,16 @@ h1 {
 .tag-list span {
   display: inline-flex;
   align-items: center;
-  min-height: 22px;
-  padding: 0 7px;
-  border: 1px solid #dfe7e2;
-  border-radius: 7px;
-  color: #305349;
-  background: #f7faf8;
+  flex: 0 0 auto;
+  min-height: 0;
+  padding: 3px 7px;
+  border: 1px solid rgb(20 115 90 / 18%);
+  border-radius: 6px;
+  color: var(--color-accent);
+  background: rgb(20 115 90 / 7%);
   font-size: 0.72rem;
-  font-weight: 700;
+  font-weight: 800;
+  line-height: 1.2;
 }
 
 .world-side {

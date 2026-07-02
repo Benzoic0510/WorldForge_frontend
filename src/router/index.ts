@@ -51,8 +51,7 @@ const router = createRouter({
       name: 'world-studio',
       component: () => import('@/pages/world/WorldStudioPage.vue'),
       meta: {
-        title: '创作工作台',
-        requiresAuth: true
+        title: '创作工作台'
       }
     },
     {
